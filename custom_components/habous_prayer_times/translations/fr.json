@@ -1,0 +1,78 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Horaires de prière (Maroc)",
+        "description": "Cette intégration fournit les horaires des cinq prières (Fajr, Dhuhr, Asr, Maghrib, Isha) et du lever du soleil pour votre logement, des zones supplémentaires et les personnes de Home Assistant, selon l'endroit où elles se trouvent. Elle crée des capteurs horodatés et un capteur « Prochaine prière », pour déclencher des notifications ou l'adhan sur vos enceintes.\n\nSource « Dépôt de données » : fichiers JSON d'un dépôt GitHub (adresse modifiable). Source « Calcul local » : calculé par Home Assistant avec la méthode Maroc (Fajr 19°, Isha 17°), sans connexion ; l'écart avec les tableaux officiels peut atteindre quelques minutes.",
+        "data": {
+          "source": "Source des horaires",
+          "data_url": "Adresse du dossier de données (URL)",
+          "fallback_local": "Utiliser le calcul local si le fichier du dépôt est absent ou périmé"
+        }
+      },
+      "home": {
+        "title": "Ville du logement",
+        "description": "Villes les plus proches de votre logement, avec leur distance à vol d'oiseau. Choisissez celle qui vous semble la plus précise.",
+        "data": { "home_city_id": "Ville" }
+      }
+    },
+    "error": {
+      "cannot_connect": "Impossible de lire la liste des villes à cette adresse. Vérifiez l'URL, ou choisissez le calcul local.",
+      "no_geolocated_city": "Aucune ville géolocalisée dans les données. Lancez d'abord le workflow de mise à jour du dépôt, ou choisissez le calcul local."
+    },
+    "abort": {
+      "single_instance_allowed": "L'intégration est déjà configurée."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options",
+        "description": "Les ajustements en minutes ne s'appliquent qu'aux horaires calculés localement.",
+        "data": {
+          "source": "Source des horaires",
+          "data_url": "Adresse du dossier de données (URL)",
+          "fallback_local": "Calcul local si le fichier du dépôt est absent ou périmé",
+          "home_city_id": "Ville du logement",
+          "zones": "Zones supplémentaires",
+          "persons": "Personnes (horaires selon leur position)",
+          "update_frequency": "Fréquence de mise à jour (dépôt)",
+          "tune_fajr": "Ajustement Fajr",
+          "tune_sunrise": "Ajustement Chourouk",
+          "tune_dhuhr": "Ajustement Dhuhr",
+          "tune_asr": "Ajustement Asr",
+          "tune_maghrib": "Ajustement Maghrib",
+          "tune_isha": "Ajustement Isha"
+        }
+      }
+    }
+  },
+  "selector": {
+    "source": {
+      "options": {
+        "repository": "Dépôt de données (fichiers JSON)",
+        "local": "Calcul local (sans connexion)"
+      }
+    },
+    "update_frequency": {
+      "options": {
+        "monthly": "Chaque mois",
+        "weekly": "Chaque semaine",
+        "daily": "Chaque jour",
+        "manual": "Manuelle (bouton « Mettre à jour »)"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "fajr": { "name": "Fajr" },
+      "sunrise": { "name": "Chourouk" },
+      "dhuhr": { "name": "Dhuhr" },
+      "asr": { "name": "Asr" },
+      "maghrib": { "name": "Maghrib" },
+      "isha": { "name": "Isha" },
+      "next_prayer": { "name": "Prochaine prière" }
+    },
+    "button": { "update": { "name": "Mettre à jour" } }
+  }
+}

@@ -1,0 +1,119 @@
+blueprint:
+  name: "Prayer notification / Notification de prière"
+  description: >
+    FR — Envoie une notification à l'heure (ou quelques minutes avant) des prières
+    que vous choisissez, pour le lieu du capteur « Prochaine prière » sélectionné.
+    Choisissez le capteur d'une PERSONNE pour être notifié selon l'endroit où elle
+    se trouve réellement, ou celui d'une zone (logement, bureau…).
+    EN — Sends a notification at the time (or a few minutes before) of the prayers
+    you choose, for the place of the selected "Next prayer" sensor. Pick a PERSON's
+    sensor to be notified for wherever they actually are, or a zone's sensor
+    (home, office…).
+  domain: automation
+  homeassistant:
+    min_version: 2024.10.0
+  input:
+    prayer_sensor:
+      name: "Next prayer sensor / Capteur « Prochaine prière »"
+      description: "Sensor « Next prayer / Prochaine prière » of a person or a zone."
+      selector:
+        entity:
+          domain: sensor
+          device_class: timestamp
+          integration: habous_prayer_times
+    prayers:
+      name: "Prayers / Prières"
+      description: "Which prayers trigger a notification? / Quelles prières déclenchent une notification ?"
+      default: [fajr, dhuhr, asr, maghrib, isha]
+      selector:
+        select:
+          multiple: true
+          mode: list
+          options:
+            - { value: fajr, label: "Fajr — الفجر" }
+            - { value: dhuhr, label: "Dhuhr — الظهر" }
+            - { value: asr, label: "Asr — العصر" }
+            - { value: maghrib, label: "Maghrib — المغرب" }
+            - { value: isha, label: "Isha — العشاء" }
+    offset:
+      name: "When / Quand"
+      description: "At prayer time or shortly before. / À l'heure de la prière ou un peu avant."
+      default: "00:00:00"
+      selector:
+        select:
+          mode: dropdown
+          options:
+            - { value: "00:00:00", label: "At prayer time / À l'heure" }
+            - { value: "-00:05:00", label: "5 min before / 5 min avant" }
+            - { value: "-00:10:00", label: "10 min before / 10 min avant" }
+            - { value: "-00:15:00", label: "15 min before / 15 min avant" }
+            - { value: "-00:30:00", label: "30 min before / 30 min avant" }
+    language:
+      name: "Message language / Langue du message"
+      default: fr
+      selector:
+        select:
+          mode: dropdown
+          options:
+            - { value: fr, label: Français }
+            - { value: en, label: English }
+    notify_action:
+      name: "Notification action / Action de notification"
+      description: >
+        Variables available / Variables disponibles : prayer, prayer_name,
+        prayer_time (HH:MM), place, message. Example / Exemple :
+        notify.mobile_app_your_phone.
+      default:
+        - action: persistent_notification.create
+          data:
+            title: "🕌 {{ prayer_name }}"
+            message: "{{ message }}"
+      selector:
+        action: {}
+
+mode: parallel
+max: 10
+max_exceeded: silent
+
+variables:
+  sensor: !input prayer_sensor
+  wanted: !input prayers
+  lang: !input language
+  offset: !input offset
+  names:
+    fajr: Fajr
+    dhuhr: Dhuhr
+    asr: Asr
+    maghrib: Maghrib
+    isha: Isha
+  prayer: "{{ state_attr(sensor, 'prayer') }}"
+  place: "{{ state_attr(sensor, 'place') }}"
+  prayer_name: "{{ names.get(prayer, prayer) }}"
+  prayer_time: "{{ as_local(states(sensor) | as_datetime).strftime('%H:%M') }}"
+  minutes_before: >-
+    {{ offset.replace('-', '').split(':')[1] | int(0) if offset.startswith('-') else 0 }}
+  message: >-
+    {% if lang == 'en' %}
+      {% if minutes_before | int > 0 -%}
+        {{ prayer_name }} at {{ prayer_time }} (in {{ minutes_before }} min) — {{ place }}
+      {%- else -%}
+        It's time for {{ prayer_name }} ({{ prayer_time }}) — {{ place }}
+      {%- endif %}
+    {% else %}
+      {% if minutes_before | int > 0 -%}
+        {{ prayer_name }} à {{ prayer_time }} (dans {{ minutes_before }} min) — {{ place }}
+      {%- else -%}
+        C'est l'heure de {{ prayer_name }} ({{ prayer_time }}) — {{ place }}
+      {%- endif %}
+    {% endif %}
+
+triggers:
+  - trigger: time
+    at: !input prayer_sensor
+    offset: !input offset
+
+conditions:
+  - condition: template
+    value_template: "{{ prayer in wanted }}"
+
+actions: !input notify_action

@@ -1,0 +1,78 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Prayer times (Morocco)",
+        "description": "This integration provides the times of the five prayers (Fajr, Dhuhr, Asr, Maghrib, Isha) and sunrise for your home, extra zones, and the Home Assistant people wherever they currently are. It creates timestamp sensors and a \"Next prayer\" sensor, to trigger notifications or the adhan on your speakers.\n\n\"Data repository\" source: JSON files from a GitHub repository (editable address). \"Local calculation\" source: computed by Home Assistant with the Morocco method (Fajr 19°, Isha 17°), no connection needed; it can differ from the official tables by a few minutes.",
+        "data": {
+          "source": "Prayer times source",
+          "data_url": "Data folder URL",
+          "fallback_local": "Use local calculation when the repository file is missing or outdated"
+        }
+      },
+      "home": {
+        "title": "Home city",
+        "description": "Cities closest to your home, with straight-line distance. Pick the one you find most accurate.",
+        "data": { "home_city_id": "City" }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not read the city list at this address. Check the URL, or choose local calculation.",
+      "no_geolocated_city": "No geolocated city in the data. Run the repository update workflow first, or choose local calculation."
+    },
+    "abort": {
+      "single_instance_allowed": "The integration is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options",
+        "description": "Minute adjustments only apply to locally calculated times.",
+        "data": {
+          "source": "Prayer times source",
+          "data_url": "Data folder URL",
+          "fallback_local": "Local calculation when the repository file is missing or outdated",
+          "home_city_id": "Home city",
+          "zones": "Additional zones",
+          "persons": "People (times for their current location)",
+          "update_frequency": "Update frequency (repository)",
+          "tune_fajr": "Fajr adjustment",
+          "tune_sunrise": "Sunrise adjustment",
+          "tune_dhuhr": "Dhuhr adjustment",
+          "tune_asr": "Asr adjustment",
+          "tune_maghrib": "Maghrib adjustment",
+          "tune_isha": "Isha adjustment"
+        }
+      }
+    }
+  },
+  "selector": {
+    "source": {
+      "options": {
+        "repository": "Data repository (JSON files)",
+        "local": "Local calculation (no connection)"
+      }
+    },
+    "update_frequency": {
+      "options": {
+        "monthly": "Every month",
+        "weekly": "Every week",
+        "daily": "Every day",
+        "manual": "Manual (\"Update\" button)"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "fajr": { "name": "Fajr" },
+      "sunrise": { "name": "Sunrise" },
+      "dhuhr": { "name": "Dhuhr" },
+      "asr": { "name": "Asr" },
+      "maghrib": { "name": "Maghrib" },
+      "isha": { "name": "Isha" },
+      "next_prayer": { "name": "Next prayer" }
+    },
+    "button": { "update": { "name": "Update" } }
+  }
+}

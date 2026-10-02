@@ -1,0 +1,97 @@
+blueprint:
+  name: "Announce prayer (Music Assistant) / Annoncer la prière (Music Assistant)"
+  description: >
+    FR — Diffuse un adhan sur les enceintes choisies à l'heure exacte des prières
+    sélectionnées, pour le lieu du capteur « Prochaine prière » (zone ou personne).
+    Option : adhan différent pour le Fajr, et pas de diffusion si personne n'est à la maison.
+    EN — Plays an adhan on the chosen speakers at the exact time of the selected
+    prayers, for the place of the "Next prayer" sensor (zone or person).
+    Option: a different adhan for Fajr, and no playback when nobody is home.
+  domain: automation
+  homeassistant:
+    min_version: 2024.10.0
+  input:
+    prayer_sensor:
+      name: "Next prayer sensor / Capteur « Prochaine prière »"
+      selector:
+        entity:
+          domain: sensor
+          device_class: timestamp
+          integration: habous_prayer_times
+    prayers:
+      name: "Prayers / Prières"
+      default: [fajr, dhuhr, asr, maghrib, isha]
+      selector:
+        select:
+          multiple: true
+          mode: list
+          options:
+            - { value: fajr, label: "Fajr — الفجر" }
+            - { value: dhuhr, label: "Dhuhr — الظهر" }
+            - { value: asr, label: "Asr — العصر" }
+            - { value: maghrib, label: "Maghrib — المغرب" }
+            - { value: isha, label: "Isha — العشاء" }
+    speakers:
+      name: "Speakers / Enceintes"
+      selector:
+        entity:
+          domain: media_player
+          multiple: true
+    adhan_url:
+      name: "Adhan audio URL / Adresse de l'adhan"
+      description: "URL reachable by the speakers / URL accessible par les enceintes (ex. /local/adhan.mp3)."
+      default: ""
+      selector:
+        text: {}
+    fajr_adhan_url:
+      name: "Fajr adhan URL (optional) / Adhan du Fajr (facultatif)"
+      default: ""
+      selector:
+        text: {}
+    volume_boost:
+      name: "Volume increase during the announcement / Augmentation de volume (%)"
+      default: 20
+      selector:
+        number:
+          min: 0
+          max: 60
+          unit_of_measurement: "%"
+    only_if_home:
+      name: "Only if someone is home / Seulement si quelqu'un est à la maison"
+      default: true
+      selector:
+        boolean: {}
+
+mode: single
+max_exceeded: silent
+
+variables:
+  sensor: !input prayer_sensor
+  wanted: !input prayers
+  speakers: !input speakers
+  url: !input adhan_url
+  fajr_url: !input fajr_adhan_url
+  boost: !input volume_boost
+  only_home: !input only_if_home
+  prayer: "{{ state_attr(sensor, 'prayer') }}"
+  media_url: "{{ fajr_url if prayer == 'fajr' and fajr_url | length > 0 else url }}"
+
+triggers:
+  - trigger: time
+    at: !input prayer_sensor
+
+conditions:
+  - condition: template
+    value_template: "{{ prayer in wanted and media_url | length > 0 }}"
+  - condition: template
+    value_template: >-
+      {{ not only_home or states.person | selectattr('state', 'eq', 'home') | list | count > 0 }}
+
+actions:
+  - action: music_assistant.play_announcement
+    target:
+      entity_id: "{{ speakers }}"
+    data:
+      url: "{{ media_url }}"
+      use_pre_announce: false
+      announce_volume_increase: "{{ boost | int }}"
