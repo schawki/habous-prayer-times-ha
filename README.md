@@ -30,6 +30,21 @@ Au démarrage, l'intégration copie ses blueprints dans `config/blueprints/autom
 1. **Notification de prière** — choisissez la personne (ou la zone), **les prières** voulues, l'heure ou 5/10/15/30 min avant, la langue FR/EN et **n'importe quelle action de notification** (appli mobile, Telegram, persistante…). Variables : `prayer`, `prayer_name`, `prayer_time`, `place`, `message`.
 2. **Annonce de l'adhan (Music Assistant)** — enceintes, volume, adhan spécial Fajr, uniquement si quelqu'un est à la maison.
 
+## Carte Lovelace / Lovelace card
+
+🇫🇷 L'intégration livre sa propre carte, **chargée automatiquement** (aucune ressource à ajouter) : *Modifier le tableau de bord → Ajouter une carte → « Prayer times Morocco »*, puis choisissez n'importe quel capteur du lieu (maison, zone ou personne). Elle affiche les six horaires, le temps relatif, met la prochaine prière en évidence et indique ville Habous, distance, source et date de mise à jour. Heures affichées dans le fuseau de votre navigateur.
+
+🇬🇧 The integration ships its own card, **loaded automatically** (no resource to add): *Edit dashboard → Add card → “Prayer times Morocco”*, then pick any sensor of the place.
+
+```yaml
+type: custom:habous-prayer-card
+entity: sensor.prayer_times_maison_prochaine_priere
+title: Horaires des Prières   # facultatif
+show_sunrise: true            # facultatif
+show_details: true            # facultatif
+relative_style: compact       # compact (+14:25 / −0:14, défaut) ou long
+```
+
 ## Installation via HACS
 
 1. HACS → ⋮ → *Dépôts personnalisés* → collez `https://github.com/schawki/habous-prayer-times-ha` → catégorie **Intégration**.
@@ -43,7 +58,7 @@ Au démarrage, l'intégration copie ses blueprints dans `config/blueprints/autom
 ## Limites connues / Known limits
 
 - Le parseur du dépôt n'a été testé que sur une page synthétique ; l'intégration n'a pas encore tourné dans une vraie instance Home Assistant.
-- Le fuseau horaire de Home Assistant doit être `Africa/Casablanca`.
+- Le fuseau horaire de Home Assistant doit être `Africa/Casablanca`. Les capteurs sont des instants absolus (UTC) : si l'heure affichée par HA est décalée d'une heure, c'est la règle de fuseau du système, pas le calcul.
 - Mosquées (Mawaqit) : non pris en charge pour l'instant.
 
 ## Tests

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 from pathlib import Path
 
+from homeassistant.components.frontend import add_extra_js_url
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
@@ -13,6 +16,10 @@ from .coordinator import HabousCoordinator
 
 PLATFORMS = ["sensor", "button"]
 _BLUEPRINTS = Path(__file__).parent / "blueprints"
+_FRONTEND = Path(__file__).parent / "frontend"
+CARD_FILE = "habous-prayer-card.js"
+CARD_URL = f"/{DOMAIN}/{CARD_FILE}"
+_CARD_FLAG = f"{DOMAIN}_card_registered"
 
 
 def _install_blueprints(blueprints_root: str) -> None:
@@ -32,8 +39,25 @@ def _install_blueprints(blueprints_root: str) -> None:
             shutil.copyfile(src, target)
 
 
+def _manifest_version() -> str:
+    return json.loads((Path(__file__).parent / "manifest.json").read_text("utf-8"))["version"]
+
+
+async def _register_card(hass: HomeAssistant) -> None:
+    """Sert la carte Lovelace livrée et la charge automatiquement dans l'interface."""
+    if hass.data.get(_CARD_FLAG):
+        return
+    hass.data[_CARD_FLAG] = True
+    version = await hass.async_add_executor_job(_manifest_version)
+    await hass.http.async_register_static_paths(
+        [StaticPathConfig(CARD_URL, str(_FRONTEND / CARD_FILE), cache_headers=False)]
+    )
+    add_extra_js_url(hass, f"{CARD_URL}?v={version}")
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.async_add_executor_job(_install_blueprints, hass.config.path("blueprints"))
+    await _register_card(hass)
 
     coordinator = HabousCoordinator(hass, entry)
     await coordinator.async_load_cache()

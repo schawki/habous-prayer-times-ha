@@ -184,5 +184,25 @@ class MetaTests(unittest.TestCase):
         self.assertEqual(list(m)[:0] + sorted(m), sorted(m))
 
 
+class CardTests(unittest.TestCase):
+    def test_card_shipped_and_registered(self):
+        js = (COMP / "frontend" / "habous-prayer-card.js").read_text("utf-8")
+        self.assertIn('customElements.define("habous-prayer-card"', js)
+        init = (COMP / "__init__.py").read_text("utf-8")
+        self.assertIn("add_extra_js_url", init)
+        self.assertIn("async_register_static_paths", init)
+        m = json.loads((COMP / "manifest.json").read_text("utf-8"))
+        self.assertTrue({"frontend", "http"} <= set(m["dependencies"]))
+
+    def test_card_syntax(self):
+        import shutil, subprocess
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node absent")
+        r = subprocess.run([node, "--check", str(COMP / "frontend" / "habous-prayer-card.js")],
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()
