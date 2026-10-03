@@ -244,7 +244,7 @@ class ArabicTests(unittest.TestCase):
             self.assertIn("Fajr — الفجر", (COMP / "blueprints" / f).read_text("utf-8"))
 
     def test_version_bumped(self):
-        self.assertEqual(json.loads((COMP / "manifest.json").read_text("utf-8"))["version"], "0.5.2")
+        self.assertEqual(json.loads((COMP / "manifest.json").read_text("utf-8"))["version"], "0.5.3")
 
 
 class CardTests(unittest.TestCase):
@@ -294,6 +294,14 @@ class EnglishFirstTests(unittest.TestCase):
         for path in (COMP / "blueprints").glob("*.yaml"):
             head = path.read_text("utf-8").split("input:")[0]
             self.assertNotIn(" / ", head.split("description")[0], path.name)
+
+
+class CompactSeparatorTests(unittest.TestCase):
+    def test_every_card_language_defines_hm_separator(self):
+        js = (COMP / "frontend" / "habous-prayer-card.js").read_text("utf-8")
+        self.assertEqual(js.count("hm_sep:"), 3)
+        self.assertIn('hm_sep: ":"', js)
+        self.assertIn("${t.hm_sep}", js)
 
 
 if __name__ == "__main__":

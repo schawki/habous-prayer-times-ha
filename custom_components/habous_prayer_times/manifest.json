@@ -9,5 +9,5 @@
   "issue_tracker": "https://github.com/schawki/habous-prayer-times-ha/issues",
   "name": "Prayer times Morocco",
   "requirements": ["prayer-times-calculator-offline>=1.0.2"],
-  "version": "0.5.2"
+  "version": "0.5.3"
 }

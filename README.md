@@ -45,7 +45,7 @@ entity: sensor.prayer_times_home_next_prayer
 title: Prayer times        # optional
 show_sunrise: true         # optional
 show_details: true         # optional
-relative_style: compact    # compact (+14:25 / −0:14, default) or long
+relative_style: compact    # compact (+14h25 / −0h14 in French and Arabic, +14:25 in English; default) or long
 show_comparison: false     # true: "Habous 05:01 · calculated 05:02 (+1)" under each prayer
 ```
 

@@ -45,7 +45,7 @@ entity: sensor.prayer_times_home_next_prayer
 title: أوقات الصلاة   # اختياري
 show_sunrise: true    # اختياري
 show_details: true    # اختياري
-relative_style: compact   # compact (+14:25 / −0:14، افتراضي) أو long
+relative_style: compact   # compact (+14h25 / −0h14، افتراضي؛ +14:25 بالإنجليزية) أو long
 show_comparison: false    # true: «الأوقاف 05:01 · حساب 05:02 (+1)» تحت كل صلاة
 ```
 

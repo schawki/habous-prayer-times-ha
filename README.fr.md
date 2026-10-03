@@ -45,7 +45,7 @@ entity: sensor.prayer_times_maison_prochaine_priere
 title: Horaires des prières   # facultatif
 show_sunrise: true            # facultatif
 show_details: true            # facultatif
-relative_style: compact       # compact (+14:25 / −0:14, défaut) ou long
+relative_style: compact       # compact (+14h25 / −0h14, défaut ; +14:25 en anglais) ou long
 show_comparison: false        # true : « Habous 05:01 · calcul 05:02 (+1) » sous chaque prière
 ```
 

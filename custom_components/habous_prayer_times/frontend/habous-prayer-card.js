@@ -8,7 +8,7 @@
  *   title: Prayer times                                     # optional
  *   show_sunrise: true                                     # optional
  *   show_details: true                                     # city, distance, source, last update
- *   relative_style: compact                                # compact (+14:25 / −0:14) or long
+ *   relative_style: compact                                # compact (+14h25 / −0h14, or +14:25 in English) or long
  *   show_comparison: false                                 # Habous time and calculated time side by side
  */
 
@@ -21,6 +21,7 @@ const ICONS = { fajr: "🌘", sunrise: halfSun("#FFC107"), dhuhr: "☀️", asr:
 const TEXT = {
   fr: {
     title: "Horaires des prières",
+    hm_sep: "h",
     prayer: "Prière", time: "Heure", relative: "Relatif",
     names: { fajr: "Fajr", sunrise: "Chourouk", dhuhr: "Dhuhr", asr: "Asr", maghrib: "Maghrib", isha: "Isha" },
     in: "dans", ago: "il y a", now: "maintenant",
@@ -31,11 +32,12 @@ const TEXT = {
     unavailable: "Capteurs indisponibles",
     e_entity: "Capteur du lieu", e_title: "Titre", e_sunrise: "Afficher le lever du soleil",
     e_details: "Afficher ville, distance et source",
-    e_relative: "Temps relatif", e_compact: "Condensé (+14:25 / −0:14)", e_long: "Détaillé (il y a 14 heures…)",
+    e_relative: "Temps relatif", e_compact: "Condensé (+14h25 / −0h14)", e_long: "Détaillé (il y a 14 heures…)",
     cmp_repo: "Habous", cmp_calc: "calcul", e_comparison: "Comparer l'heure Habous et l'heure calculée",
   },
   en: {
     title: "Prayer times",
+    hm_sep: ":",
     prayer: "Prayer", time: "Time", relative: "Relative",
     names: { fajr: "Fajr", sunrise: "Sunrise", dhuhr: "Dhuhr", asr: "Asr", maghrib: "Maghrib", isha: "Isha" },
     in: "in", ago: "ago", now: "now",
@@ -53,6 +55,7 @@ const TEXT = {
 
 TEXT.ar = {
   title: "أوقات الصلاة",
+  hm_sep: "h",
   prayer: "الصلاة", time: "الوقت", relative: "الفارق",
   names: { fajr: "الفجر", sunrise: "الشروق", dhuhr: "الظهر", asr: "العصر", maghrib: "المغرب", isha: "العشاء" },
   in: "بعد", ago: "منذ", now: "الآن",
@@ -63,7 +66,7 @@ TEXT.ar = {
   unavailable: "المستشعرات غير متاحة",
   e_entity: "مستشعر المكان", e_title: "العنوان", e_sunrise: "إظهار الشروق",
   e_details: "إظهار المدينة والمسافة والمصدر",
-  e_relative: "الوقت النسبي", e_compact: "مختصر (+14:25 / −0:14)", e_long: "مفصّل (منذ 14 ساعة…)",
+  e_relative: "الوقت النسبي", e_compact: "مختصر (+14h25 / −0h14)", e_long: "مفصّل (منذ 14 ساعة…)",
   cmp_repo: "الأوقاف", cmp_calc: "حساب", e_comparison: "مقارنة وقت الأوقاف بالوقت المحسوب",
 };
 
@@ -172,8 +175,8 @@ class HabousPrayerCard extends HTMLElement {
     const diff = date.getTime() - Date.now();
     const mins = Math.round(Math.abs(diff) / 60000);
     if (this._config.relative_style !== "long") {
-      // Compact: +14:25 = passed 14 h 25 ago; −0:14 = in 14 min.
-      const hm = `${Math.floor(mins / 60)}:${String(mins % 60).padStart(2, "0")}`;
+      // Compact: +14h25 = passed 14 h 25 ago; −0h14 = in 14 min (":" instead of "h" in English).
+      const hm = `${Math.floor(mins / 60)}${t.hm_sep}${String(mins % 60).padStart(2, "0")}`;
       return ltr(`${diff >= 0 && mins > 0 ? "−" : "+"}${hm}`);
     }
     if (mins < 1) return t.now;
