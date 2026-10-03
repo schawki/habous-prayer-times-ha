@@ -11,7 +11,22 @@ CONF_HOME_CITY = "home_city_id"
 CONF_ZONES = "zones"
 CONF_PERSONS = "persons"
 CONF_FREQUENCY = "update_frequency"
+CONF_MAX_CITY_DISTANCE = "max_city_distance_km"
+CONF_RECALC_TOLERANCE = "recalc_tolerance_km"
 CONF_TUNE_PREFIX = "tune_"  # tune_fajr, tune_sunrise, ... (minutes, calcul local)
+
+# Lieu hors zone connue : ville Habous seulement si elle est à moins de ... km, sinon calcul.
+DEFAULT_MAX_CITY_DISTANCE_KM = 30.0
+# Le calcul d'un lieu libre (personne hors zone) n'est refait que si elle s'est éloignée de
+# plus de ... km du point du dernier calcul, ou si le jour a changé.
+DEFAULT_RECALC_TOLERANCE_KM = 5.0
+
+# Mode d'un lieu : zone connue, ville du dépôt, ou calcul local.
+MODE_ZONE = "zone"
+MODE_REPOSITORY = "repository"
+MODE_CALCULATED = "calculated"
+
+SERVICE_RECALCULATE = "recalculate"
 
 SOURCE_REPO = "repository"
 SOURCE_LOCAL = "local"

@@ -13,7 +13,9 @@
       "home": {
         "title": "Home city",
         "description": "Cities closest to your home, with straight-line distance. Pick the one you find most accurate.",
-        "data": { "home_city_id": "City" }
+        "data": {
+          "home_city_id": "City"
+        }
       }
     },
     "error": {
@@ -36,6 +38,8 @@
           "home_city_id": "Home city",
           "zones": "Additional zones",
           "persons": "People (times for their current location)",
+          "max_city_distance_km": "Maximum distance to a Habous city (km)",
+          "recalc_tolerance_km": "Recalculation tolerance (km)",
           "update_frequency": "Update frequency (repository)",
           "tune_fajr": "Fajr adjustment",
           "tune_sunrise": "Sunrise adjustment",
@@ -65,14 +69,48 @@
   },
   "entity": {
     "sensor": {
-      "fajr": { "name": "Fajr" },
-      "sunrise": { "name": "Sunrise" },
-      "dhuhr": { "name": "Dhuhr" },
-      "asr": { "name": "Asr" },
-      "maghrib": { "name": "Maghrib" },
-      "isha": { "name": "Isha" },
-      "next_prayer": { "name": "Next prayer" }
+      "fajr": {
+        "name": "Fajr"
+      },
+      "sunrise": {
+        "name": "Sunrise"
+      },
+      "dhuhr": {
+        "name": "Dhuhr"
+      },
+      "asr": {
+        "name": "Asr"
+      },
+      "maghrib": {
+        "name": "Maghrib"
+      },
+      "isha": {
+        "name": "Isha"
+      },
+      "next_prayer": {
+        "name": "Next prayer"
+      }
     },
-    "button": { "update": { "name": "Update" } }
+    "button": {
+      "update": {
+        "name": "Update"
+      }
+    }
+  },
+  "services": {
+    "recalculate": {
+      "name": "Recalculate times",
+      "description": "Recalculates times for a free location (a person outside any known zone) when they are out of date: moved beyond the configured tolerance, or a new day. Has no effect if the calculation is up to date.",
+      "fields": {
+        "entity_id": {
+          "name": "Place",
+          "description": "Entity (zone or person) to recalculate. Empty: all places."
+        },
+        "force": {
+          "name": "Force",
+          "description": "Recalculate even if the calculation is up to date."
+        }
+      }
+    }
   }
 }

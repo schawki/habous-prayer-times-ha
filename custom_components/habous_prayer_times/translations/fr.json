@@ -13,7 +13,9 @@
       "home": {
         "title": "Ville du logement",
         "description": "Villes les plus proches de votre logement, avec leur distance à vol d'oiseau. Choisissez celle qui vous semble la plus précise.",
-        "data": { "home_city_id": "Ville" }
+        "data": {
+          "home_city_id": "Ville"
+        }
       }
     },
     "error": {
@@ -36,6 +38,8 @@
           "home_city_id": "Ville du logement",
           "zones": "Zones supplémentaires",
           "persons": "Personnes (horaires selon leur position)",
+          "max_city_distance_km": "Distance maximale de la ville Habous (km)",
+          "recalc_tolerance_km": "Tolérance avant recalcul (km)",
           "update_frequency": "Fréquence de mise à jour (dépôt)",
           "tune_fajr": "Ajustement Fajr",
           "tune_sunrise": "Ajustement Chourouk",
@@ -65,14 +69,48 @@
   },
   "entity": {
     "sensor": {
-      "fajr": { "name": "Fajr" },
-      "sunrise": { "name": "Chourouk" },
-      "dhuhr": { "name": "Dhuhr" },
-      "asr": { "name": "Asr" },
-      "maghrib": { "name": "Maghrib" },
-      "isha": { "name": "Isha" },
-      "next_prayer": { "name": "Prochaine prière" }
+      "fajr": {
+        "name": "Fajr"
+      },
+      "sunrise": {
+        "name": "Chourouk"
+      },
+      "dhuhr": {
+        "name": "Dhuhr"
+      },
+      "asr": {
+        "name": "Asr"
+      },
+      "maghrib": {
+        "name": "Maghrib"
+      },
+      "isha": {
+        "name": "Isha"
+      },
+      "next_prayer": {
+        "name": "Prochaine prière"
+      }
     },
-    "button": { "update": { "name": "Mettre à jour" } }
+    "button": {
+      "update": {
+        "name": "Mettre à jour"
+      }
+    }
+  },
+  "services": {
+    "recalculate": {
+      "name": "Recalculer les horaires",
+      "description": "Recalcule les horaires d'un lieu libre (personne hors zone connue) s'ils ne sont plus à jour : déplacement au-delà de la tolérance réglée, ou nouveau jour. Sans effet si le calcul est à jour.",
+      "fields": {
+        "entity_id": {
+          "name": "Lieu",
+          "description": "Entité (zone ou personne) à recalculer. Vide : tous les lieux."
+        },
+        "force": {
+          "name": "Forcer",
+          "description": "Recalcule même si le calcul est à jour."
+        }
+      }
+    }
   }
 }

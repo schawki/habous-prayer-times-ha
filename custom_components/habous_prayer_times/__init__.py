@@ -9,9 +9,11 @@ from pathlib import Path
 from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
+from homeassistant.exceptions import ServiceValidationError
+import voluptuous as vol
 
-from .const import DOMAIN, SOURCE_REPO
+from .const import DOMAIN, SERVICE_RECALCULATE, SOURCE_REPO
 from .coordinator import HabousCoordinator
 
 PLATFORMS = ["sensor", "button"]
@@ -55,7 +57,39 @@ async def _register_card(hass: HomeAssistant) -> None:
     add_extra_js_url(hass, f"{CARD_URL}?v={version}")
 
 
+def _register_service(hass: HomeAssistant) -> None:
+    """Service habous_prayer_times.recalculate : recalcule un lieu s'il n'est plus à jour."""
+    if hass.services.has_service(DOMAIN, SERVICE_RECALCULATE):
+        return
+
+    async def _recalculate(call: ServiceCall) -> ServiceResponse:
+        coordinators = list(hass.data.get(DOMAIN, {}).values())
+        if not coordinators:
+            raise ServiceValidationError("Intégration non configurée")
+        entity_id = call.data.get("entity_id")
+        result: dict = {}
+        found = False
+        for coordinator in coordinators:
+            places = (coordinator.data or {}).get("places", {})
+            if entity_id and entity_id not in places:
+                continue
+            found = True
+            result.update(await coordinator.async_recalculate(entity_id, call.data["force"]))
+        if entity_id and not found:
+            raise ServiceValidationError(f"Lieu inconnu : {entity_id}")
+        return {"places": result}
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_RECALCULATE,
+        _recalculate,
+        schema=vol.Schema({vol.Optional("entity_id"): str, vol.Optional("force", default=False): bool}),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    _register_service(hass)
     await hass.async_add_executor_job(_install_blueprints, hass.config.path("blueprints"))
     await _register_card(hass)
 
@@ -80,4 +114,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     platforms = PLATFORMS if coordinator.source == SOURCE_REPO else ["sensor"]
     if unloaded := await hass.config_entries.async_unload_platforms(entry, platforms):
         hass.data[DOMAIN].pop(entry.entry_id)
+        if not hass.data[DOMAIN]:
+            hass.services.async_remove(DOMAIN, SERVICE_RECALCULATE)
     return unloaded

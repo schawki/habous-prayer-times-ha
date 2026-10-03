@@ -25,7 +25,7 @@ const TEXT = {
     names: { fajr: "Fajr", sunrise: "Chourouk", dhuhr: "Dhuhr", asr: "Asr", maghrib: "Maghrib", isha: "Isha" },
     in: "dans", ago: "il y a", now: "maintenant",
     h: ["heure", "heures"], m: ["minute", "minutes"], less: "moins d'une minute",
-    city: "Ville Habous", source: "Source", updated: "Mis à jour",
+    city: "Ville Habous", source: "Source", updated: "Mis à jour", calc_at: "Calculé à", refresh: "Actualiser",
     sources: { repository: "Dépôt de données", local_calculation: "Calcul local" },
     missing: "Choisissez un capteur « Prochaine prière » (ou n'importe quel capteur du lieu).",
     unavailable: "Capteurs indisponibles",
@@ -40,7 +40,7 @@ const TEXT = {
     names: { fajr: "Fajr", sunrise: "Sunrise", dhuhr: "Dhuhr", asr: "Asr", maghrib: "Maghrib", isha: "Isha" },
     in: "in", ago: "ago", now: "now",
     h: ["hour", "hours"], m: ["minute", "minutes"], less: "less than a minute",
-    city: "Habous city", source: "Source", updated: "Updated",
+    city: "Habous city", source: "Source", updated: "Updated", calc_at: "Calculated at", refresh: "Refresh",
     sources: { repository: "Data repository", local_calculation: "Local calculation" },
     missing: "Pick a “Next prayer” sensor (or any sensor of the place).",
     unavailable: "Sensors unavailable",
@@ -57,7 +57,7 @@ TEXT.ar = {
   names: { fajr: "الفجر", sunrise: "الشروق", dhuhr: "الظهر", asr: "العصر", maghrib: "المغرب", isha: "العشاء" },
   in: "بعد", ago: "منذ", now: "الآن",
   h: ["ساعة", "ساعات", "ساعتان"], m: ["دقيقة", "دقائق", "دقيقتان"], less: "أقل من دقيقة",
-  city: "مدينة الأوقاف", source: "المصدر", updated: "آخر تحديث",
+  city: "مدينة الأوقاف", source: "المصدر", updated: "آخر تحديث", calc_at: "تم الحساب عند", refresh: "تحديث",
   sources: { repository: "مستودع البيانات", local_calculation: "الحساب المحلي" },
   missing: "اختر مستشعر «الصلاة القادمة» (أو أي مستشعر للمكان).",
   unavailable: "المستشعرات غير متاحة",
@@ -132,10 +132,23 @@ class HabousPrayerCard extends HTMLElement {
 
   connectedCallback() {
     this._timer = setInterval(() => this._render(), 30000);
+    // Page de nouveau visible : on redemande un recalcul (le serveur ignore s'il est à jour).
+    this._vis = () => { if (!document.hidden) { this._autoDone = false; this._render(); } };
+    document.addEventListener("visibilitychange", this._vis);
   }
 
   disconnectedCallback() {
     clearInterval(this._timer);
+    document.removeEventListener("visibilitychange", this._vis);
+  }
+
+  /** Service recalculate : ne recalcule que si le lieu a bougé au-delà de la tolérance ou si le jour a changé. */
+  _recalc(entity, manual) {
+    if (!this._hass || !entity) return;
+    const now = Date.now();
+    if (!manual && this._lastCall && now - this._lastCall < 30000) return;
+    this._lastCall = now;
+    this._hass.callService("habous_prayer_times", "recalculate", { entity_id: entity }).catch(() => {});
   }
 
   getCardSize() { return 7; }
@@ -212,6 +225,8 @@ class HabousPrayerCard extends HTMLElement {
         tr.next td:first-child{border-start-start-radius:10px;border-end-start-radius:10px}
         tr.next td:last-child{border-start-end-radius:10px;border-end-end-radius:10px}
         .msg{color:var(--secondary-text-color);padding:8px 0}
+        .rf{background:none;border:none;color:var(--secondary-text-color);cursor:pointer;padding:2px 4px;vertical-align:middle;border-radius:6px}
+        .rf:hover{color:var(--primary-color)}
       </style><ha-card><div id="c"></div></ha-card>`;
     }
     const { t, lang } = this._t();
@@ -240,6 +255,13 @@ class HabousPrayerCard extends HTMLElement {
       }
     }
 
+    const calcAt = attrs.mode === "calculated" && attrs.calculated_at ? new Date(attrs.calculated_at) : null;
+    const calcValid = calcAt && !isNaN(calcAt);
+    if (calcValid) details.push(`${t.calc_at} ${ltr(this._fmtTime(calcAt, lang))}`);
+    const refresh = calcValid
+      ? ` <button class="rf" id="rf" type="button" title="${t.refresh}" aria-label="${t.refresh}"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>`
+      : "";
+
     const rows = ORDER.filter((p) => cfg.show_sunrise || p !== "sunrise").map((p) => {
       const st = sensors[p];
       let d = st && st.state && !["unknown", "unavailable"].includes(st.state) ? new Date(st.state) : null;
@@ -257,9 +279,16 @@ class HabousPrayerCard extends HTMLElement {
     }).join("");
 
     el.innerHTML = `<h2>${title}</h2>
-      ${details.length ? `<div class="sub">${details.join(" · ")}</div>` : ""}
+      ${details.length ? `<div class="sub">${details.join(" · ")}${refresh}</div>` : ""}
       <table><thead><tr><th></th><th>${t.prayer}</th><th>${t.time}</th><th>${t.relative}</th></tr></thead>
       <tbody>${rows}</tbody></table>`;
+    const rf = el.querySelector("#rf");
+    if (rf) rf.addEventListener("click", () => this._recalc(attrs.entity, true));
+    // Ouverture de la page : un seul appel automatique pour un lieu calculé.
+    if (!this._autoDone && attrs.mode === "calculated") {
+      this._autoDone = true;
+      this._recalc(attrs.entity, false);
+    }
   }
 }
 

@@ -1,0 +1,15 @@
+recalculate:
+  fields:
+    entity_id:
+      required: false
+      example: person.saad
+      selector:
+        entity:
+          filter:
+            - domain: person
+            - domain: zone
+    force:
+      required: false
+      default: false
+      selector:
+        boolean:

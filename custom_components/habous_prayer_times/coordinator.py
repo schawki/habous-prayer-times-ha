@@ -7,9 +7,10 @@ from datetime import date, datetime, timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.helpers.event import async_track_state_change_event, async_track_time_change
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
@@ -22,12 +23,19 @@ from .const import (
     CONF_FALLBACK_LOCAL,
     CONF_FREQUENCY,
     CONF_HOME_CITY,
+    CONF_MAX_CITY_DISTANCE,
     CONF_PERSONS,
+    CONF_RECALC_TOLERANCE,
     CONF_SOURCE,
     CONF_TUNE_PREFIX,
     CONF_ZONES,
     DEFAULT_DATA_URL,
     DEFAULT_FREQUENCY,
+    DEFAULT_MAX_CITY_DISTANCE_KM,
+    DEFAULT_RECALC_TOLERANCE_KM,
+    MODE_CALCULATED,
+    MODE_REPOSITORY,
+    MODE_ZONE,
     DEFAULT_SOURCE,
     DEFAULT_TUNE,
     DOMAIN,
@@ -110,6 +118,9 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.cities: list[dict[str, Any]] = []
         self.errors: dict[str, str] = {}
         self._force = False
+        # Dernier calcul de chaque lieu : {lat, lon, day, at, free}. Gardé en mémoire.
+        self._anchors: dict[str, dict[str, Any]] = {}
+        self._forced: set[str] = set()
         self.api = HabousApi(
             async_get_clientsession(hass),
             data_url(entry),
@@ -132,46 +143,121 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             state.state,
         )
 
+    def _choose_city(
+        self, entity_id: str, lat: float, lon: float, by_id: dict[int, dict[str, Any]],
+        max_km: float,
+    ) -> tuple[dict[str, Any] | None, float | None, bool]:
+        """(ville Habous, distance, calcul_obligatoire) d'un point, selon la source."""
+        if self.source != SOURCE_REPO or not self.cities:
+            return None, None, False
+        chosen = conf(self.entry, CONF_HOME_CITY)
+        if entity_id == HOME_ZONE and chosen:
+            city = by_id.get(int(chosen))
+            if city and city.get("lat") is not None:
+                return city, haversine_km(lat, lon, city["lat"], city["lon"]), False
+        best = nearest_cities(self.cities, lat, lon, 1)
+        if best and best[0][1] <= max_km:
+            return best[0][0], best[0][1], False
+        # Aucune ville Habous dans le rayon : on calcule à la position du lieu.
+        return None, None, True
+
+    def _anchor(
+        self, info: dict[str, Any], entity_id: str, lat: float, lon: float, free: bool,
+        tolerance_km: float, now: datetime,
+    ) -> None:
+        """Point et heure du dernier calcul. Réutilisés tant que le lieu n'a pas bougé de plus
+        de `tolerance_km` (lieu libre) et que le jour n'a pas changé."""
+        if entity_id in self._forced:
+            self._anchors.pop(entity_id, None)
+        anchor = self._anchors.get(entity_id)
+        reuse = False
+        if anchor and anchor["day"] == now.date() and anchor["free"] == free:
+            if free:
+                reuse = haversine_km(anchor["lat"], anchor["lon"], lat, lon) <= tolerance_km
+            else:
+                reuse = anchor["lat"] == lat and anchor["lon"] == lon
+        if not reuse:
+            anchor = {"lat": lat, "lon": lon, "day": now.date(), "at": now, "free": free}
+            self._anchors[entity_id] = anchor
+        info["calc_lat"], info["calc_lon"] = anchor["lat"], anchor["lon"]
+        info["calculated_at"] = anchor["at"]
+
+    @staticmethod
+    def _zone_of(state: str | None, zones: dict[str, dict[str, Any]]) -> str | None:
+        """Zone connue où se trouve une personne (d'après l'état de son entité), sinon None."""
+        if not state or state in ("not_home", "unknown", "unavailable"):
+            return None
+        if state == "home":
+            return HOME_ZONE if HOME_ZONE in zones else None
+        for zone_id, info in zones.items():
+            if info["name"].casefold() == state.casefold():
+                return zone_id
+        return None
+
     def resolve_places(self) -> dict[str, dict[str, Any]]:
-        """place -> {name, kind, label, lat, lon, city_id, city_name, distance_km}."""
+        """place -> {name, kind, mode, label, lat, lon, calc_lat, calc_lon, calculated_at,
+        city_id, city_name, distance_km, force_calc}.
+
+        Zones : ville Habous (celle choisie pour le logement, sinon la plus proche dans le
+        rayon réglé) ou calcul. Personnes : horaires de la zone connue où elles se trouvent ;
+        sinon ville Habous dans le rayon réglé ; sinon calcul à leur position.
+        """
         by_id = {int(c["id"]): c for c in self.cities}
-        wanted = [(HOME_ZONE, "zone")]
-        wanted += [(z, "zone") for z in conf(self.entry, CONF_ZONES, [])]
-        wanted += [(p, "person") for p in conf(self.entry, CONF_PERSONS, [])]
+        max_km = float(conf(self.entry, CONF_MAX_CITY_DISTANCE, DEFAULT_MAX_CITY_DISTANCE_KM))
+        tol_km = float(conf(self.entry, CONF_RECALC_TOLERANCE, DEFAULT_RECALC_TOLERANCE_KM))
+        now = dt_util.now()
 
         places: dict[str, dict[str, Any]] = {}
-        for entity_id, kind in dict.fromkeys(wanted):
+        zones: dict[str, dict[str, Any]] = {}
+        for entity_id in dict.fromkeys([HOME_ZONE, *conf(self.entry, CONF_ZONES, [])]):
             coords = self._place_coords(entity_id)
             if coords is None:
                 continue
             lat, lon, name, state = coords
-            info: dict[str, Any] = {
-                "name": name,
-                "kind": kind,
-                "lat": lat,
-                "lon": lon,
-                "city_id": None,
-                "city_name": None,
-                "distance_km": None,
-            }
-            if self.source == SOURCE_REPO and self.cities:
-                city = dist = None
-                chosen = conf(self.entry, CONF_HOME_CITY)
-                if entity_id == HOME_ZONE and chosen:
-                    city = by_id.get(int(chosen))
-                    if city and city.get("lat") is not None:
-                        dist = haversine_km(lat, lon, city["lat"], city["lon"])
-                else:
-                    best = nearest_cities(self.cities, lat, lon, 1)
-                    if best:
-                        city, dist = best[0]
-                if city:
-                    info["city_id"] = int(city["id"])
-                    info["city_name"] = city.get("name_fr") or city.get("name")
-                    info["distance_km"] = None if dist is None else round(dist, 1)
-            info["label"] = self._label(kind, name, state, info)
+            city, dist, force_calc = self._choose_city(entity_id, lat, lon, by_id, max_km)
+            info = self._new_info(name, "zone", lat, lon, city, dist, force_calc, MODE_ZONE)
+            self._anchor(info, entity_id, lat, lon, False, tol_km, now)
+            info["label"] = self._label("zone", name, state, info)
+            places[entity_id] = zones[entity_id] = info
+
+        for entity_id in dict.fromkeys(conf(self.entry, CONF_PERSONS, [])):
+            if entity_id in places:
+                continue
+            coords = self._place_coords(entity_id)
+            if coords is None:
+                continue
+            lat, lon, name, state = coords
+            zone_id = self._zone_of(state, zones)
+            if zone_id:
+                z = zones[zone_id]
+                info = {**z, "name": name, "kind": "person", "lat": lat, "lon": lon, "mode": MODE_ZONE}
+                self._anchor(info, entity_id, z["lat"], z["lon"], False, tol_km, now)
+            else:
+                city, dist, force_calc = self._choose_city(entity_id, lat, lon, by_id, max_km)
+                mode = MODE_REPOSITORY if city else MODE_CALCULATED
+                info = self._new_info(name, "person", lat, lon, city, dist, force_calc, mode)
+                self._anchor(info, entity_id, lat, lon, True, tol_km, now)
+            info["label"] = self._label("person", name, state, info)
             places[entity_id] = info
+
+        self._forced.clear()
         return places
+
+    def _new_info(
+        self, name: str, kind: str, lat: float, lon: float, city: dict[str, Any] | None,
+        dist: float | None, force_calc: bool, mode: str,
+    ) -> dict[str, Any]:
+        return {
+            "name": name,
+            "kind": kind,
+            "mode": mode,
+            "lat": lat,
+            "lon": lon,
+            "city_id": int(city["id"]) if city else None,
+            "city_name": (city.get("name_fr") or city.get("name")) if city else None,
+            "distance_km": None if dist is None else round(dist, 1),
+            "force_calc": force_calc,
+        }
 
     def _label(self, kind: str, name: str, state: str | None, info: dict[str, Any]) -> str:
         """Texte lisible du lieu (utilisé dans les notifications)."""
@@ -208,11 +294,15 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         place = (self.data or {}).get("places", {}).get(place_id)
         if not place:
             return None
-        if self.source == SOURCE_REPO and (found := self._repository_times(place, day)):
+        if (
+            self.source == SOURCE_REPO
+            and not place.get("force_calc")
+            and (found := self._repository_times(place, day))
+        ):
             return found
-        if self.source == SOURCE_LOCAL or self.fallback_local:
+        if self.source == SOURCE_LOCAL or self.fallback_local or place.get("force_calc"):
             return (
-                calc.compute_day(place["lat"], place["lon"], day, self.tune),
+                calc.compute_day(place["calc_lat"], place["calc_lon"], day, self.tune),
                 {"source": SRC_LABEL_LOCAL, "updated": None},
             )
         return None
@@ -223,14 +313,14 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         None si l'une des deux manque (source locale, jour absent du dépôt…).
         """
         place = (self.data or {}).get("places", {}).get(place_id)
-        if not place or self.source != SOURCE_REPO:
+        if not place or self.source != SOURCE_REPO or place.get("force_calc"):
             return None
         found = self._repository_times(place, day)
         if not found:
             return None
         return {
             "repository": found[0],
-            "calculated": calc.compute_day(place["lat"], place["lon"], day, self.tune),
+            "calculated": calc.compute_day(place["calc_lat"], place["calc_lon"], day, self.tune),
         }
 
     # --------------------------------------------------------------- cache
@@ -251,16 +341,43 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     # ------------------------------------------------------ personnes suivies
     @callback
     def async_start_tracking(self):
-        """Recalcule les lieux quand une personne suivie se déplace."""
+        """Recalcule les lieux quand une personne suivie se déplace, et à minuit."""
         persons = conf(self.entry, CONF_PERSONS, [])
-        if not persons:
-            return lambda: None
 
         @callback
-        def _moved(_event: Event) -> None:
+        def _refresh(*_args: Any) -> None:
             self.hass.async_create_task(self.async_request_refresh())
 
-        return async_track_state_change_event(self.hass, persons, _moved)
+        unsubs = [async_track_time_change(self.hass, _refresh, hour=0, minute=0, second=10)]
+        if persons:
+            unsubs.append(async_track_state_change_event(self.hass, persons, _refresh))
+
+        @callback
+        def _unsub() -> None:
+            for unsub in unsubs:
+                unsub()
+
+        return _unsub
+
+    async def async_recalculate(self, entity_id: str | None = None, force: bool = False) -> dict[str, Any]:
+        """Service « recalculate » : recalcule un lieu (ou tous) s'il n'est plus à jour."""
+        places = (self.data or {}).get("places", {})
+        targets = [entity_id] if entity_id else list(places)
+        if entity_id and entity_id not in places:
+            raise ServiceValidationError(f"Lieu inconnu : {entity_id}")
+        before = {t: places[t].get("calculated_at") for t in targets}
+        if force:
+            self._forced.update(targets)
+        await self.async_refresh()
+        places = (self.data or {}).get("places", {})
+        result: dict[str, Any] = {}
+        for t in targets:
+            at = (places.get(t) or {}).get("calculated_at")
+            result[t] = {
+                "recalculated": at is not None and at != before[t],
+                "calculated_at": at.isoformat() if at else None,
+            }
+        return result
 
     # ----------------------------------------------------------- rafraîchir
     async def async_force_refresh(self) -> None:

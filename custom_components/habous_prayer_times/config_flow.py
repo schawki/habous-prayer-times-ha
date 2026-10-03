@@ -26,12 +26,16 @@ from .const import (
     CONF_FALLBACK_LOCAL,
     CONF_FREQUENCY,
     CONF_HOME_CITY,
+    CONF_MAX_CITY_DISTANCE,
     CONF_PERSONS,
+    CONF_RECALC_TOLERANCE,
     CONF_SOURCE,
     CONF_TUNE_PREFIX,
     CONF_ZONES,
     DEFAULT_DATA_URL,
     DEFAULT_FREQUENCY,
+    DEFAULT_MAX_CITY_DISTANCE_KM,
+    DEFAULT_RECALC_TOLERANCE_KM,
     DEFAULT_TUNE,
     DEFAULT_SOURCE,
     DOMAIN,
@@ -161,6 +165,22 @@ class HabousOptionsFlow(OptionsFlow):
         )
         schema[vol.Optional(CONF_PERSONS, default=conf(entry, CONF_PERSONS, []))] = EntitySelector(
             EntitySelectorConfig(domain="person", multiple=True)
+        )
+        schema[
+            vol.Required(
+                CONF_MAX_CITY_DISTANCE,
+                default=conf(entry, CONF_MAX_CITY_DISTANCE, DEFAULT_MAX_CITY_DISTANCE_KM),
+            )
+        ] = NumberSelector(
+            NumberSelectorConfig(min=1, max=200, step=1, unit_of_measurement="km", mode=NumberSelectorMode.BOX)
+        )
+        schema[
+            vol.Required(
+                CONF_RECALC_TOLERANCE,
+                default=conf(entry, CONF_RECALC_TOLERANCE, DEFAULT_RECALC_TOLERANCE_KM),
+            )
+        ] = NumberSelector(
+            NumberSelectorConfig(min=0.1, max=50, step=0.1, unit_of_measurement="km", mode=NumberSelectorMode.BOX)
         )
         schema[vol.Required(CONF_FREQUENCY, default=conf(entry, CONF_FREQUENCY, DEFAULT_FREQUENCY))] = (
             SelectSelector(

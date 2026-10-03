@@ -14,7 +14,7 @@ from homeassistant.helpers.event import async_track_point_in_time, async_track_t
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
-from .const import ADHAN_PRAYERS, DOMAIN, NEXT_PRAYER_HOLD_SECONDS, PRAYERS
+from .const import ADHAN_PRAYERS, DOMAIN, NEXT_PRAYER_HOLD_SECONDS, PRAYERS, SRC_LABEL_LOCAL
 from .coordinator import HabousCoordinator
 from .timeutil import diff_minutes
 
@@ -67,6 +67,12 @@ class _PlaceSensor(CoordinatorEntity[HabousCoordinator], SensorEntity):
             "distance_km": place.get("distance_km"),
             "source": meta.get("source"),
             "last_update": meta.get("updated"),
+            "mode": place.get("mode"),
+            "calculated_at": (
+                place["calculated_at"].isoformat()
+                if meta.get("source") == SRC_LABEL_LOCAL and place.get("calculated_at")
+                else None
+            ),
         }
 
     async def async_added_to_hass(self) -> None:
