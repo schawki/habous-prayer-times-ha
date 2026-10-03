@@ -244,7 +244,7 @@ class ArabicTests(unittest.TestCase):
             self.assertIn("Fajr — الفجر", (COMP / "blueprints" / f).read_text("utf-8"))
 
     def test_version_bumped(self):
-        self.assertEqual(json.loads((COMP / "manifest.json").read_text("utf-8"))["version"], "0.4.0")
+        self.assertEqual(json.loads((COMP / "manifest.json").read_text("utf-8"))["version"], "0.4.1")
 
 
 class CardTests(unittest.TestCase):

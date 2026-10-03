@@ -14,7 +14,9 @@
 
 const DOMAIN = "habous_prayer_times";
 const ORDER = ["fajr", "sunrise", "dhuhr", "asr", "maghrib", "isha"];
-const ICONS = { fajr: "🌘", sunrise: "🌅", dhuhr: "☀️", asr: "🌤️", maghrib: "🌇", isha: "🌙" };
+// Demi-soleil sur l'horizon (Chourouk jaune, Maghrib orange) : même style sur tous les appareils.
+const halfSun = (color) => `<svg class="hs" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5.5 17a6.5 6.5 0 0 1 13 0Z" fill="${color}" stroke="none"/><path d="M2.5 17h19"/><path d="M12 5.2v2.2M4.9 8.1l1.5 1.5M19.1 8.1l-1.5 1.5M2.8 12.2l2 .6M21.2 12.2l-2 .6"/></svg>`;
+const ICONS = { fajr: "🌘", sunrise: halfSun("#FFC107"), dhuhr: "☀️", asr: "🌤️", maghrib: halfSun("#FF7043"), isha: "🌙" };
 
 const TEXT = {
   fr: {
@@ -200,6 +202,7 @@ class HabousPrayerCard extends HTMLElement {
         td{padding:12px 8px;border-bottom:1px solid var(--divider-color);color:var(--primary-text-color);vertical-align:middle}
         tr:last-child td{border-bottom:none}
         td.ic{width:40px;font-size:22px;text-align:center}
+        td.ic .hs{width:26px;height:26px;display:block;margin:0 auto}
         td.nm{font-weight:600;font-size:16px}
         td.tm{font-variant-numeric:tabular-nums}
         td.rel{color:var(--secondary-text-color)}
