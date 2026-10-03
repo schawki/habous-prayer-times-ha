@@ -1,4 +1,4 @@
-"""Accès au dépôt de données JSON (aucun scraping côté Home Assistant)."""
+"""Access to the JSON data repository (no scraping on the Home Assistant side)."""
 
 from __future__ import annotations
 
@@ -16,11 +16,11 @@ _TIMEOUT = 20
 
 
 class HabousError(Exception):
-    """Erreur de récupération des données."""
+    """Data retrieval error."""
 
 
 class HabousApi:
-    """Client du dépôt JSON : cities.json et times/<id>.json."""
+    """JSON repository client: cities.json and times/<id>.json."""
 
     def __init__(self, session: ClientSession, data_url: str) -> None:
         self._session = session
@@ -36,7 +36,7 @@ class HabousApi:
             raise HabousError(f"{url}: {err}") from err
 
     async def async_get_cities(self) -> list[dict[str, Any]]:
-        """Villes avec coordonnées, lues dans le dépôt de données."""
+        """Cities with coordinates, read from the data repository."""
         try:
             cities = json.loads(await self._get_text(f"{self._base}/cities.json"))["cities"]
         except (ValueError, KeyError) as err:
@@ -46,7 +46,7 @@ class HabousApi:
         return cities
 
     async def async_get_times(self, city_id: int) -> dict[str, Any]:
-        """Horaires d'une ville : {"days", "updated", "utc_offset"} (décalage facultatif)."""
+        """Times of one city: {"days", "updated", "utc_offset"} (offset is optional)."""
         try:
             payload = json.loads(await self._get_text(f"{self._base}/times/{city_id}.json"))
             return {

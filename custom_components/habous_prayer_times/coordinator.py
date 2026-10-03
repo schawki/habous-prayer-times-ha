@@ -1,4 +1,4 @@
-"""Coordinateur : lieux suivis, cache du dépôt, calcul local en repli."""
+"""Coordinator: tracked places, repository cache, local calculation as fallback."""
 
 from __future__ import annotations
 
@@ -19,6 +19,7 @@ from . import calc
 from .api import HabousApi, HabousError
 from .const import (
     CHECK_INTERVAL_HOURS,
+    CONF_COMPARE,
     CONF_DATA_URL,
     CONF_FALLBACK_LOCAL,
     CONF_FREQUENCY,
@@ -59,18 +60,18 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def conf(entry: ConfigEntry, key: str, default: Any = None) -> Any:
-    """Option si définie, sinon donnée d'installation."""
+    """Option if set, otherwise the setup data."""
     return entry.options.get(key, entry.data.get(key, default))
 
 
 def data_url(entry: ConfigEntry) -> str:
-    """Adresse des données ; l'ancienne adresse par défaut est remplacée par la nouvelle."""
+    """Data address; the former default address is replaced by the new one."""
     url = str(conf(entry, CONF_DATA_URL, DEFAULT_DATA_URL))
     return DEFAULT_DATA_URL if url.rstrip("/") in LEGACY_DATA_URLS else url
 
 
 def is_due(frequency: str, last: datetime | None, now: datetime) -> bool:
-    """Faut-il rafraîchir selon la fréquence choisie ?"""
+    """Is a refresh due according to the chosen frequency?"""
     if last is None:
         return True
     if frequency == FREQ_MANUAL:
@@ -85,7 +86,7 @@ def is_due(frequency: str, last: datetime | None, now: datetime) -> bool:
 
 
 def _tzinfo(utc_offset: str | None):
-    """Décalage écrit dans le fichier du dépôt, sinon fuseau de Home Assistant."""
+    """Offset written in the repository file, otherwise the Home Assistant timezone."""
     return tz_from_offset(utc_offset) or dt_util.get_default_time_zone()
 
 
@@ -96,7 +97,7 @@ def _at(day_iso: str, hhmm: str, utc_offset: str | None = None) -> datetime:
 
 
 class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
-    """Gère les lieux suivis (logement, zones, personnes) et leurs horaires."""
+    """Manage the tracked places (home, zones, people) and their times."""
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         super().__init__(
@@ -109,6 +110,8 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.entry = entry
         self.source: str = conf(entry, CONF_SOURCE, DEFAULT_SOURCE)
         self.fallback_local: bool = conf(entry, CONF_FALLBACK_LOCAL, True)
+        # Compare with the Habous times (calculated vs published), whichever the source.
+        self.compare: bool = bool(conf(entry, CONF_COMPARE, True))
         self.tune = {
             p: int(conf(entry, f"{CONF_TUNE_PREFIX}{p}", DEFAULT_TUNE.get(p, 0))) for p in PRAYERS
         }
@@ -118,7 +121,7 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.cities: list[dict[str, Any]] = []
         self.errors: dict[str, str] = {}
         self._force = False
-        # Dernier calcul de chaque lieu : {lat, lon, day, at, free}. Gardé en mémoire.
+        # Last calculation of each place: {lat, lon, day, at, free}. Kept in memory.
         self._anchors: dict[str, dict[str, Any]] = {}
         self._forced: set[str] = set()
         self.api = HabousApi(
@@ -128,7 +131,7 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     # ------------------------------------------------------------- lieux
     def _place_coords(self, entity_id: str) -> tuple[float, float, str, str | None] | None:
-        """(lat, lon, nom, état) d'une zone ou d'une personne."""
+        """(lat, lon, name, state) of a zone or a person."""
         if entity_id == HOME_ZONE:
             state = self.hass.states.get(HOME_ZONE)
             name = state.attributes.get("friendly_name", "Home") if state else "Home"
@@ -143,12 +146,17 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             state.state,
         )
 
+    @property
+    def uses_repo(self) -> bool:
+        """Should the repository be read? Repository source, or comparison with the Habous times."""
+        return self.source == SOURCE_REPO or self.compare
+
     def _choose_city(
         self, entity_id: str, lat: float, lon: float, by_id: dict[int, dict[str, Any]],
         max_km: float,
     ) -> tuple[dict[str, Any] | None, float | None, bool]:
-        """(ville Habous, distance, calcul_obligatoire) d'un point, selon la source."""
-        if self.source != SOURCE_REPO or not self.cities:
+        """(Habous city, distance, calculation_required) of a point, according to the source."""
+        if not self.uses_repo or not self.cities:
             return None, None, False
         chosen = conf(self.entry, CONF_HOME_CITY)
         if entity_id == HOME_ZONE and chosen:
@@ -158,15 +166,15 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         best = nearest_cities(self.cities, lat, lon, 1)
         if best and best[0][1] <= max_km:
             return best[0][0], best[0][1], False
-        # Aucune ville Habous dans le rayon : on calcule à la position du lieu.
+        # No Habous city within range: calculate at the place's position.
         return None, None, True
 
     def _anchor(
         self, info: dict[str, Any], entity_id: str, lat: float, lon: float, free: bool,
         tolerance_km: float, now: datetime,
     ) -> None:
-        """Point et heure du dernier calcul. Réutilisés tant que le lieu n'a pas bougé de plus
-        de `tolerance_km` (lieu libre) et que le jour n'a pas changé."""
+        """Point and time of the last calculation. Reused as long as the place has not moved more
+        than `tolerance_km` (free place) and the day has not changed."""
         if entity_id in self._forced:
             self._anchors.pop(entity_id, None)
         anchor = self._anchors.get(entity_id)
@@ -184,7 +192,7 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     @staticmethod
     def _zone_of(state: str | None, zones: dict[str, dict[str, Any]]) -> str | None:
-        """Zone connue où se trouve une personne (d'après l'état de son entité), sinon None."""
+        """Known zone where a person is (from the state of its entity), otherwise None."""
         if not state or state in ("not_home", "unknown", "unavailable"):
             return None
         if state == "home":
@@ -199,8 +207,8 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         city_id, city_name, distance_km, force_calc}.
 
         Zones : ville Habous (celle choisie pour le logement, sinon la plus proche dans le
-        rayon réglé) ou calcul. Personnes : horaires de la zone connue où elles se trouvent ;
-        sinon ville Habous dans le rayon réglé ; sinon calcul à leur position.
+        the configured radius) or calculation. People: times of the known zone they are in;
+        otherwise a Habous city within the configured radius; otherwise calculation at their position.
         """
         by_id = {int(c["id"]): c for c in self.cities}
         max_km = float(conf(self.entry, CONF_MAX_CITY_DISTANCE, DEFAULT_MAX_CITY_DISTANCE_KM))
@@ -234,7 +242,8 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._anchor(info, entity_id, z["lat"], z["lon"], False, tol_km, now)
             else:
                 city, dist, force_calc = self._choose_city(entity_id, lat, lon, by_id, max_km)
-                mode = MODE_REPOSITORY if city else MODE_CALCULATED
+                # Local source: the Habous city is only used for comparison, times are calculated.
+                mode = MODE_REPOSITORY if city and self.source == SOURCE_REPO else MODE_CALCULATED
                 info = self._new_info(name, "person", lat, lon, city, dist, force_calc, mode)
                 self._anchor(info, entity_id, lat, lon, True, tol_km, now)
             info["label"] = self._label("person", name, state, info)
@@ -260,21 +269,21 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         }
 
     def _label(self, kind: str, name: str, state: str | None, info: dict[str, Any]) -> str:
-        """Texte lisible du lieu (utilisé dans les notifications)."""
+        """Human-readable text of the place (used in notifications)."""
         if kind == "zone":
             return name
         if state == "home":
             home = self.hass.states.get(HOME_ZONE)
             return home.attributes.get("friendly_name", "Home") if home else "Home"
         if state and state != "not_home":
-            return state  # nom de la zone où se trouve la personne
+            return state  # name of the zone where the person is
         return info["city_name"] or f"{info['lat']:.2f}, {info['lon']:.2f}"
 
     # ------------------------------------------------------------ horaires
     def _repository_times(
         self, place: dict[str, Any], day: date
     ) -> tuple[dict[str, datetime], dict[str, Any]] | None:
-        """Horaires du dépôt (cache) pour la ville du lieu, s'ils couvrent ce jour."""
+        """Repository times (cache) for the place's city, if they cover this day."""
         if place["city_id"] is None:
             return None
         cached = self._cache.get(str(place["city_id"]))
@@ -290,7 +299,7 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def times_for(
         self, place_id: str, day: date
     ) -> tuple[dict[str, datetime], dict[str, Any]] | None:
-        """Horaires d'un lieu pour un jour + métadonnées (source, mise à jour)."""
+        """Times of a place for one day + metadata (source, update)."""
         place = (self.data or {}).get("places", {}).get(place_id)
         if not place:
             return None
@@ -308,12 +317,12 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return None
 
     def comparison_for(self, place_id: str, day: date) -> dict[str, dict[str, datetime]] | None:
-        """Heures du dépôt ET du calcul (avec ajustements), pour les comparer.
+        """Repository AND calculated times (with adjustments), to compare them.
 
-        None si l'une des deux manque (source locale, jour absent du dépôt…).
+        None if either is missing (comparison disabled, day absent from the repository…).
         """
         place = (self.data or {}).get("places", {}).get(place_id)
-        if not place or self.source != SOURCE_REPO or place.get("force_calc"):
+        if not place or not self.compare or place.get("force_calc"):
             return None
         found = self._repository_times(place, day)
         if not found:
@@ -341,7 +350,7 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     # ------------------------------------------------------ personnes suivies
     @callback
     def async_start_tracking(self):
-        """Recalcule les lieux quand une personne suivie se déplace, et à minuit."""
+        """Recalculate places when a tracked person moves, and at midnight."""
         persons = conf(self.entry, CONF_PERSONS, [])
 
         @callback
@@ -360,7 +369,7 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return _unsub
 
     async def async_recalculate(self, entity_id: str | None = None, force: bool = False) -> dict[str, Any]:
-        """Service « recalculate » : recalcule un lieu (ou tous) s'il n'est plus à jour."""
+        """\"recalculate\" service: recalculate one place (or all) if out of date."""
         places = (self.data or {}).get("places", {})
         targets = [entity_id] if entity_id else list(places)
         if entity_id and entity_id not in places:
@@ -379,9 +388,9 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             }
         return result
 
-    # ----------------------------------------------------------- rafraîchir
+    # ------------------------------------------------------------- refresh
     async def async_force_refresh(self) -> None:
-        """Bouton « Mettre à jour »."""
+        """\"Update\" button."""
         self._force = True
         await self.async_refresh()
 
@@ -390,11 +399,11 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         today = now.date()
         force, self._force = self._force, False
 
-        if self.source == SOURCE_REPO:
+        if self.uses_repo:
             await self._async_refresh_repo(now, today, force)
         places = self.resolve_places()
         if not places:
-            raise UpdateFailed("Aucun lieu suivi n'a de coordonnées")
+            raise UpdateFailed("No tracked place has coordinates")
         return {"places": places}
 
     async def _async_refresh_repo(self, now: datetime, today: date, force: bool) -> None:
@@ -402,7 +411,7 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             try:
                 self.cities = await self.api.async_get_cities()
             except HabousError as err:
-                if not self.cities and not self.fallback_local:
+                if not self.cities and not self.fallback_local and self.source == SOURCE_REPO:
                     raise UpdateFailed(str(err)) from err
                 _LOGGER.warning("Liste des villes indisponible : %s", err)
                 return
@@ -413,8 +422,8 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         for city_id in {p["city_id"] for p in self.resolve_places().values() if p["city_id"]}:
             key = str(city_id)
             cached = self._cache.get(key)
-            # Même en mode manuel : on récupère si le jour courant manque
-            # (nouveau lieu, fichier périmé).
+            # Even in manual mode: fetch if the current day is missing
+            # (new place, outdated file).
             missing_today = not cached or today.isoformat() not in cached["days"]
             if not (due or missing_today):
                 continue
@@ -427,8 +436,8 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 _LOGGER.warning("Ville %s : %s", city_id, err)
 
         if fetched_any:
-            if due:  # si tout a échoué, on retente à l'heure suivante
+            if due:  # if everything failed, retry at the next hour
                 self._last_check = now
             await self._async_save()
-        elif self.errors and not self.fallback_local and not self._cache:
-            raise UpdateFailed("Aucune donnée d'horaires disponible")
+        elif self.errors and not self.fallback_local and not self._cache and self.source == SOURCE_REPO:
+            raise UpdateFailed("No prayer-time data available")

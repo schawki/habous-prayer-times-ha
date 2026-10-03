@@ -1,29 +1,25 @@
 blueprint:
-  name: "Prayer notification / Notification de prière"
+  name: "Prayer notification"
   description: >
-    FR/AR/EN — Envoie une notification à l'heure (ou quelques minutes avant) des prières
-    que vous choisissez, pour le lieu du capteur « Prochaine prière » sélectionné.
-    Choisissez le capteur d'une PERSONNE pour être notifié selon l'endroit où elle
-    se trouve réellement, ou celui d'une zone (logement, bureau…).
-    EN — Sends a notification at the time (or a few minutes before) of the prayers
+    Sends a notification at the time (or a few minutes before) of the prayers
     you choose, for the place of the selected "Next prayer" sensor. Pick a PERSON's
     sensor to be notified for wherever they actually are, or a zone's sensor
-    (home, office…).
+    (home, office…). The message can be written in English, French or Arabic.
   domain: automation
   homeassistant:
     min_version: 2024.10.0
   input:
     prayer_sensor:
-      name: "Next prayer sensor / Capteur « Prochaine prière »"
-      description: "Sensor « Next prayer / Prochaine prière » of a person or a zone."
+      name: "Next prayer sensor"
+      description: "The \"Next prayer\" sensor of a person or a zone."
       selector:
         entity:
           domain: sensor
           device_class: timestamp
           integration: habous_prayer_times
     prayers:
-      name: "Prayers / Prières"
-      description: "Which prayers trigger a notification? / Quelles prières déclenchent une notification ?"
+      name: "Prayers"
+      description: "Which prayers trigger a notification?"
       default: [fajr, dhuhr, asr, maghrib, isha]
       selector:
         select:
@@ -36,21 +32,21 @@ blueprint:
             - { value: maghrib, label: "Maghrib — المغرب" }
             - { value: isha, label: "Isha — العشاء" }
     offset:
-      name: "When / Quand"
-      description: "At prayer time or shortly before. / À l'heure de la prière ou un peu avant."
+      name: "When"
+      description: "At prayer time or shortly before."
       default: "00:00:00"
       selector:
         select:
           mode: dropdown
           options:
-            - { value: "00:00:00", label: "At prayer time / À l'heure" }
-            - { value: "-00:05:00", label: "5 min before / 5 min avant" }
-            - { value: "-00:10:00", label: "10 min before / 10 min avant" }
-            - { value: "-00:15:00", label: "15 min before / 15 min avant" }
-            - { value: "-00:30:00", label: "30 min before / 30 min avant" }
+            - { value: "00:00:00", label: "At prayer time" }
+            - { value: "-00:05:00", label: "5 min before" }
+            - { value: "-00:10:00", label: "10 min before" }
+            - { value: "-00:15:00", label: "15 min before" }
+            - { value: "-00:30:00", label: "30 min before" }
     language:
-      name: "Message language / Langue du message"
-      default: fr
+      name: "Message language"
+      default: en
       selector:
         select:
           mode: dropdown
@@ -59,11 +55,10 @@ blueprint:
             - { value: en, label: English }
             - { value: ar, label: العربية }
     notify_action:
-      name: "Notification action / Action de notification"
+      name: "Notification action"
       description: >
-        Variables available / Variables disponibles : prayer, prayer_name,
-        prayer_time (HH:MM), place, message. Example / Exemple :
-        notify.mobile_app_your_phone.
+        Variables available: prayer, prayer_name, prayer_time (HH:MM), place,
+        message. Example: notify.mobile_app_your_phone.
       default:
         - action: persistent_notification.create
           data:
@@ -85,7 +80,7 @@ variables:
     fr: { fajr: Fajr, dhuhr: Dhuhr, asr: Asr, maghrib: Maghrib, isha: Isha }
     en: { fajr: Fajr, dhuhr: Dhuhr, asr: Asr, maghrib: Maghrib, isha: Isha }
     ar: { fajr: الفجر, dhuhr: الظهر, asr: العصر, maghrib: المغرب, isha: العشاء }
-  names: "{{ names_by_lang.get(lang, names_by_lang['fr']) }}"
+  names: "{{ names_by_lang.get(lang, names_by_lang['en']) }}"
   prayer: "{{ state_attr(sensor, 'prayer') }}"
   place: "{{ state_attr(sensor, 'place') }}"
   prayer_name: "{{ names.get(prayer, prayer) }}"

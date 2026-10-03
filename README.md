@@ -1,68 +1,69 @@
-# Horaires de prière Maroc / Prayer times Morocco — Home Assistant
+# Prayer times Morocco — Home Assistant
 
-🇫🇷 **À quoi sert cette intégration ?** Elle donne dans Home Assistant les horaires des cinq prières (Fajr, Dhuhr, Asr, Maghrib, Isha) et du lever du soleil pour votre logement, des zones supplémentaires et **les personnes selon l'endroit où elles se trouvent**. Elle crée des capteurs horodatés et un capteur « Prochaine prière » pour déclencher des **notifications** ou l'**adhan sur vos enceintes** (Music Assistant).
+🌐 **English** · [Français](README.fr.md) · [العربية](README.ar.md)
 
-🇬🇧 **What is it for?** It provides the five daily prayer times (Fajr, Dhuhr, Asr, Maghrib, Isha) and sunrise for your home, extra zones, and **people wherever they currently are**. It creates timestamp sensors and a "Next prayer" sensor to trigger **notifications** or the **adhan on your speakers** (Music Assistant).
+Prayer times for Morocco in Home Assistant: the five daily prayers (Fajr, Dhuhr, Asr, Maghrib, Isha) and sunrise for your home, extra zones, and **people wherever they currently are**. It creates timestamp sensors and a "Next prayer" sensor to trigger **notifications** or the **adhan on your speakers** (Music Assistant). Times come from the tables of the Ministry of Habous and Islamic Affairs, or are calculated locally when needed.
 
-🇲🇦 **ما هذه الإضافة؟** توفّر في Home Assistant أوقات الصلوات الخمس (الفجر، الظهر، العصر، المغرب، العشاء) ووقت الشروق لمنزلك ولمناطق إضافية **وللأشخاص بحسب مكان وجودهم**، مع مستشعر «الصلاة القادمة» لتشغيل **الإشعارات** أو **الأذان على مكبرات الصوت** (Music Assistant). الأوقات مأخوذة من جداول وزارة الأوقاف والشؤون الإسلامية، أو محسوبة محليًا عند الحاجة. **هذه الإضافة غير رسمية وغير تابعة للوزارة.**
+> **Unofficial.** This project is not affiliated with the Ministry of Habous and Islamic Affairs. The times published on https://www.habous.gov.ma are authoritative.
 
-Interface : français, anglais et arabe (selon la langue de Home Assistant) · UI: French, English and Arabic.
+The interface is available in English, French and Arabic (it follows the language of Home Assistant). Other languages can be added: see [Translations](#translations).
 
-> **Non officiel / Unofficial.** Ce projet n'est pas affilié au Ministère des Habous et des Affaires islamiques. Les horaires font foi sur https://www.habous.gov.ma. / This project is not affiliated with the Ministry; its website is authoritative.
+## Two sources of times
 
-## Deux sources d'horaires / Two sources
-
-| | Dépôt de données (défaut) | Calcul local |
+| | Data repository (default) | Local calculation |
 |---|---|---|
-| FR | Fichiers JSON du dépôt [habous-prayer-times-data](https://github.com/schawki/habous-prayer-times-data), adresse **modifiable** dans les options. Ce sont les horaires publiés par les Habous pour 191 villes. Ville la plus proche, distance affichée. | Calculé par Home Assistant (méthode Maroc : Fajr 19°, Isha 17°), sans connexion, pour les coordonnées exactes. Ajustement possible en minutes par prière. |
-| EN | JSON files from the [habous-prayer-times-data](https://github.com/schawki/habous-prayer-times-data) repository, **editable** address in the options. These are the times published by the Habous for 191 cities. Nearest city, distance shown. | Computed by Home Assistant (Morocco method: Fajr 19°, Isha 17°), offline, for exact coordinates. Per-prayer minute adjustment. |
+| What it is | JSON files of the [habous-prayer-times-data](https://github.com/schawki/habous-prayer-times-data) repository (editable address in the options): the times published by the Habous for 191 cities. Nearest city, distance shown. | Computed by Home Assistant (Morocco method: Fajr 19°, Isha 17°), offline, for the exact coordinates. Per-prayer minute adjustment. |
 
-**Le calcul local sert aussi de repli** (option, activée par défaut) quand le fichier du dépôt est absent ou périmé. **Honnêteté sur les données :** le dépôt de données est mis à jour par un workflow GitHub **manuel** (voir ce dépôt) ; la page des Habous ne publie qu'un mois hijri à la fois, donc entre deux mises à jour l'intégration retombe sur le calcul local. / The data repository is refreshed by a **manual** GitHub workflow and the Habous page only publishes one Hijri month at a time: between two refreshes the integration falls back to the local calculation.
+**Option "Compare with the Habous times"** (on by default, whichever the source). With the *Data repository* source, times are the Habous ones and the calculation is the comparison. With *Local calculation* it is the reverse: displayed times are calculated (with your adjustments) and the Habous times are only used to measure the gap (`repository_time`, `calculated_time`, `difference_min`, `repository_role: comparison`). Unticked, no comparison is shown, and with *Local calculation* nothing is downloaded from the repository.
 
-**Précision du calcul local, mesurée** sur Casablanca du 13/09 au 12/10/2026 (30 jours, comparé aux horaires Habous) : écart de −1 à +1 minute pour Fajr, Dhuhr, Asr, Maghrib et Isha ; le lever du soleil est calculé 3 à 4 minutes trop tard, d'où un ajustement par défaut de **−3 min** sur le Chourouk (modifiable). Une seule ville et un seul mois : à vérifier chez vous. Pour comparer vous-même, activez `show_comparison` sur la carte. / Local calculation measured on Casablanca (30 days): within ±1 min except sunrise (+3 to +4 min, hence a default −3 min adjustment). One city, one month: check on your side.
+**Local calculation also acts as a fallback** (option, on by default) when the repository file is missing or outdated. The data repository updates itself automatically: a daily check reads the Habous site only when the data no longer covers today. The Habous page only publishes the current Hijri month, so right after a month change there is a short window without data (see [Known limits](#known-limits)).
 
-## Fonctionnalités / Features
+**Accuracy of the local calculation, measured** on Casablanca from 13/09 to 12/10/2026 (30 days, compared with the Habous times): within −1 to +1 minute for Fajr, Dhuhr, Asr, Maghrib and Isha; sunrise is calculated 3 to 4 minutes too late, hence a default adjustment of **−3 min** on sunrise (editable). One city and one month only: check on your side. To compare yourself, enable `show_comparison` on the card.
 
-- Ville la plus proche du logement avec **distance** (source dépôt) / nearest city with **distance**.
-- **Zones supplémentaires** et **personnes** (horaires selon leur position, mis à jour quand elles se déplacent ; date de dernière mise à jour en attribut).
-- **Horaires d'une personne** / *a person's times* — 🇫🇷 : dans une zone connue (logement ou zone supplémentaire), elle reçoit les horaires de la zone ; hors zone, ceux de la ville Habous la plus proche **si elle est à moins de _N_ km** (option, 30 km par défaut) ; sinon les horaires **calculés** à sa position. Un calcul n'est refait que si la personne s'est éloignée de plus de _M_ km du point du dernier calcul (option, 5 km par défaut) ou si le jour a changé. La carte indique l'heure du calcul et propose une icône « Actualiser » ; à l'ouverture de la page elle appelle le service `habous_prayer_times.recalculate`, qui ne recalcule que si nécessaire (`force: true` pour forcer, par exemple dans une automatisation). Le recalcul utilise la dernière position connue par Home Assistant. 🇬🇧: in a known zone a person gets that zone's times; outside, the nearest Habous city if within _N_ km (option, default 30), otherwise times calculated at their position. A calculation is only redone after moving more than _M_ km (option, default 5) or on a new day; the card shows the calculation time and a refresh icon, and calls the `habous_prayer_times.recalculate` service when the page opens (`force: true` to force). 🇸🇦: داخل منطقة معروفة يحصل الشخص على أوقات المنطقة؛ خارجها تُستخدم أقرب مدينة للأوقاف إن كانت ضمن المسافة المحددة (٣٠ كم افتراضيًا)، وإلا تُحسب الأوقات في موقعه. لا يُعاد الحساب إلا بعد تحرك يتجاوز الهامش (٥ كم افتراضيًا) أو عند يوم جديد، وتعرض البطاقة وقت الحساب وأيقونة للتحديث.
-- Fréquence de mise à jour du dépôt : mensuelle (défaut), hebdomadaire, quotidienne ou manuelle + bouton « Mettre à jour ».
-- Capteurs par lieu : Fajr, Chourouk/Sunrise, Dhuhr, Asr, Maghrib, Isha, Prochaine prière. Attributs : `place`, `source`, `last_update`, `mode` (`zone`, `repository` ou `calculated`), `calculated_at` (heure du calcul, quand les horaires sont calculés), et — quand le dépôt couvre le jour — `repository_time` (heure Habous), `calculated_time` (heure calculée) et `difference_min` (calculée − Habous). Les heures du dépôt sont lues avec le `utc_offset` du fichier : elles ne dépendent pas de la base de fuseaux de Home Assistant.
+## Features
 
-## Blueprints (installés automatiquement / installed automatically)
+- Nearest city to the home with its **distance** (repository source).
+- **Extra zones** and **people**: times follow their position and update when they move (last update date as an attribute).
+- **A person's times:** in a known zone (home or an extra zone) they get that zone's times; outside, the nearest Habous city **if it is within _N_ km** (option, default 30 km); otherwise times **calculated** at their position. A calculation is only redone if the person moved more than _M_ km from the point of the last calculation (option, default 5 km) or if the day changed. The card shows the calculation time and a refresh icon; when the page opens it calls the `habous_prayer_times.recalculate` service, which only recalculates when needed (`force: true` to force, e.g. in an automation). Recalculation uses the last position known to Home Assistant.
+- Repository update frequency: monthly (default), weekly, daily or manual, plus an "Update" button.
+- Sensors per place: Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha, Next prayer. Attributes: `place`, `source`, `last_update`, `mode` (`zone`, `repository` or `calculated`), `calculated_at` (time of the calculation, when times are calculated) and — when the repository covers the day — `repository_time` (Habous time), `calculated_time` and `difference_min` (calculated − Habous). Repository times are read with the file's `utc_offset`: they do not depend on Home Assistant's timezone database.
 
-Au démarrage, l'intégration copie ses blueprints dans `config/blueprints/automation/habous_prayer_times/` (dossier géré par l'intégration : dupliquez un blueprint pour le personnaliser).
+## Blueprints (installed automatically)
 
-1. **Notification de prière** — choisissez la personne (ou la zone), **les prières** voulues, l'heure ou 5/10/15/30 min avant, la langue FR/EN/**AR** et **n'importe quelle action de notification** (appli mobile, Telegram, persistante…). Variables : `prayer`, `prayer_name`, `prayer_time`, `place`, `message`.
-2. **Annonce de l'adhan (Music Assistant)** — enceintes, volume, adhan spécial Fajr, uniquement si quelqu'un est à la maison.
+At startup the integration copies its blueprints to `config/blueprints/automation/habous_prayer_times/` (a folder managed by the integration: duplicate a blueprint to customise it). Blueprint text is in English; the notification message itself can be in English, French or Arabic.
 
-## Carte Lovelace / Lovelace card
+1. **Prayer notification** — choose the person (or zone), **the prayers**, the time or 5/10/15/30 min before, the message language (EN/FR/**AR**) and **any notification action** (mobile app, Telegram, persistent…). Variables: `prayer`, `prayer_name`, `prayer_time`, `place`, `message`.
+2. **Announce prayer (Music Assistant)** — speakers, volume, a special Fajr adhan, only when someone is home.
 
-🇫🇷 L'intégration livre sa propre carte, **chargée automatiquement** (aucune ressource à ajouter) : *Modifier le tableau de bord → Ajouter une carte → « Prayer times Morocco »*, puis choisissez n'importe quel capteur du lieu (maison, zone ou personne). Elle affiche les six horaires, le temps relatif, met la prochaine prière en évidence et indique ville Habous, distance, source et date de mise à jour. En arabe, elle s'affiche de droite à gauche. Heures affichées dans le fuseau de votre navigateur.
+## Lovelace card
 
-🇬🇧 The integration ships its own card, **loaded automatically** (no resource to add): *Edit dashboard → Add card → “Prayer times Morocco”*, then pick any sensor of the place. Right-to-left in Arabic.
+The integration ships its own card, **loaded automatically** (no resource to add): *Edit dashboard → Add card → "Prayer times Morocco"*, then pick any sensor of the place (home, zone or person). It shows the six times and the relative time, highlights the next prayer, and shows the Habous city, distance, source and last update. It is right-to-left in Arabic. Times are shown in your browser's timezone.
 
 ```yaml
 type: custom:habous-prayer-card
-entity: sensor.prayer_times_maison_prochaine_priere
-title: Horaires des Prières   # facultatif
-show_sunrise: true            # facultatif
-show_details: true            # facultatif
-relative_style: compact       # compact (+14:25 / −0:14, défaut) ou long
-show_comparison: false        # true : « Habous 05:01 · calcul 05:02 (+1) » sous chaque prière
+entity: sensor.prayer_times_home_next_prayer
+title: Prayer times        # optional
+show_sunrise: true         # optional
+show_details: true         # optional
+relative_style: compact    # compact (+14:25 / −0:14, default) or long
+show_comparison: false     # true: "Habous 05:01 · calculated 05:02 (+1)" under each prayer
 ```
 
 ## Installation via HACS
 
-1. HACS → ⋮ → *Dépôts personnalisés* → collez `https://github.com/schawki/habous-prayer-times-ha` → catégorie **Intégration**.
-2. Installez, redémarrez Home Assistant, puis *Paramètres → Appareils et services → Ajouter une intégration → Horaires de prière Maroc*.
-3. Choisissez la source (« Dépôt de données » par défaut ; « Calcul local » ne demande aucune connexion).
+1. HACS → ⋮ → *Custom repositories* → paste `https://github.com/schawki/habous-prayer-times-ha` → category **Integration**.
+2. Install, restart Home Assistant, then *Settings → Devices & services → Add integration → Prayer times Morocco*.
+3. Choose the source ("Data repository" by default; "Local calculation" needs no connection).
 
-## Limites connues / Known limits
+## Known limits
 
-- Le fuseau horaire de Home Assistant devrait être `Africa/Casablanca`. Les capteurs sont des instants absolus (UTC) ; pour les heures du dépôt, le `utc_offset` du fichier est utilisé, et pour le calcul local aucune base de fuseaux n'intervient.
-- **Changement de mois hijri : une courte fenêtre sans données du jour.** La page des Habous ne montre que le mois en cours ; le dépôt de données se met à jour automatiquement (passage quotidien, passe complète seulement quand le mois change), mais les horaires du nouveau mois n'apparaissent qu'après minuit, une fois que la page des Habous les affiche (traitement d'environ 15 à 30 minutes). L'intégration récupère ensuite les nouveaux fichiers lors de sa vérification horaire : au pire, **environ une heure et demie** sans données du jour ; le bouton « Mettre à jour » raccourcit l'attente. Pendant ce temps, si l'option « Calcul local si le fichier du dépôt est absent ou périmé » est cochée (par défaut), les horaires sont **calculés localement** (écart de quelques minutes au maximum) et la carte indique « Calcul local » ; sinon les capteurs restent sans valeur. Si le site des Habous n'a pas changé de mois ou est inaccessible, la mise à jour est retentée le lendemain. / **At each Hijri month change there is a short window without data for the day.** The Habous page only shows the current month; the data repository updates itself automatically, but the new month's times only appear shortly after midnight, once the Habous page shows them (about 15–30 minutes of processing), then the integration picks them up at its hourly check: worst case about 1.5 hours; the “Update” button shortens the wait. Meanwhile, if “Local calculation when the repository file is missing or outdated” is ticked (default), times are calculated locally (a few minutes' difference at most) and the card says “Local calculation”; otherwise the sensors have no value. / **عند تغيّر الشهر الهجري توجد فترة قصيرة بلا بيانات لليوم.** تعرض صفحة الأوقاف الشهر الحالي فقط؛ تُحدَّث بيانات المستودع تلقائيًا، لكن أوقات الشهر الجديد لا تظهر إلا بعد منتصف الليل بوقت قصير، ثم تلتقطها الإضافة عند فحصها كل ساعة (في أسوأ الحالات حوالي ساعة ونصف؛ زر «تحديث» يختصر الانتظار). خلال ذلك، إن كان خيار «الحساب المحلي عند غياب ملف المستودع أو قِدمه» مفعّلًا (افتراضيًا)، تُحسب الأوقات محليًا (بفارق دقائق قليلة على الأكثر) وتشير البطاقة إلى «الحساب المحلي»؛ وإلا تبقى المستشعرات بلا قيمة.
-- Mosquées (Mawaqit) : non pris en charge pour l'instant.
+- Home Assistant's timezone should be `Africa/Casablanca`. Sensors are absolute instants (UTC); for repository times the file's `utc_offset` is used, and the local calculation uses no timezone database.
+- **At each Hijri month change there is a short window without data for the day.** The Habous page only shows the current month. The data repository updates itself automatically (a daily check, and a full pass only when the month changes), but the new month's times only appear after midnight, once the Habous page shows them (about 15–30 minutes of processing). The integration then picks up the new files at its hourly check: worst case **about an hour and a half** without data for the day; the "Update" button shortens the wait. Meanwhile, if the option "Local calculation when the repository file is missing or outdated" is ticked (default), times are **calculated locally** (a few minutes' difference at most) and the card says "Local calculation"; otherwise the sensors have no value. If the Habous site has not changed month or is unreachable, the update is retried the next day.
+- Mosques (Mawaqit): not supported for now.
+
+## Translations
+
+The texts of the interface (setup, options, service) are in `custom_components/habous_prayer_times/translations/`: `en.json` is the reference, with `fr.json` and `ar.json`. To add a language, copy `en.json` to `<language code>.json` (for example `es.json`) and translate the values. The card has its own texts at the top of `frontend/habous-prayer-card.js` (`TEXT` table, English by default). For the README, add a `README.<code>.md` and a link at the top of the others.
 
 ## Tests
 

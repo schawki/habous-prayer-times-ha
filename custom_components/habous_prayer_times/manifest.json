@@ -7,7 +7,7 @@
   "integration_type": "service",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/schawki/habous-prayer-times-ha/issues",
-  "name": "Prayer times Morocco / Horaires de prière Maroc",
+  "name": "Prayer times Morocco",
   "requirements": ["prayer-times-calculator-offline>=1.0.2"],
-  "version": "0.5.0"
+  "version": "0.5.2"
 }

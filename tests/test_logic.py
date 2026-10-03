@@ -207,7 +207,7 @@ class MetaTests(unittest.TestCase):
     def test_option_fields_are_translated(self):
         fr = json.loads((COMP / "translations" / "fr.json").read_text("utf-8"))
         data = fr["options"]["step"]["init"]["data"]
-        for key in ("source", "data_url", "fallback_local", "home_city_id", "zones", "persons",
+        for key in ("source", "data_url", "fallback_local", "compare", "home_city_id", "zones", "persons",
                     "update_frequency", *(f"tune_{p}" for p in const.PRAYERS)):
             self.assertIn(key, data)
 
@@ -244,7 +244,7 @@ class ArabicTests(unittest.TestCase):
             self.assertIn("Fajr — الفجر", (COMP / "blueprints" / f).read_text("utf-8"))
 
     def test_version_bumped(self):
-        self.assertEqual(json.loads((COMP / "manifest.json").read_text("utf-8"))["version"], "0.5.0")
+        self.assertEqual(json.loads((COMP / "manifest.json").read_text("utf-8"))["version"], "0.5.2")
 
 
 class CardTests(unittest.TestCase):
@@ -265,6 +265,35 @@ class CardTests(unittest.TestCase):
         r = subprocess.run([node, "--check", str(COMP / "frontend" / "habous-prayer-card.js")],
                            capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
+
+
+class EnglishFirstTests(unittest.TestCase):
+    """English is the reference language; French and Arabic are translations."""
+
+    def test_readmes_exist_and_link_each_other(self):
+        for name in ("README.md", "README.fr.md", "README.ar.md"):
+            text = (ROOT / name).read_text("utf-8")
+            for other in ("README.md", "README.fr.md", "README.ar.md"):
+                if other != name:
+                    self.assertIn(f"]({other})", text, f"{name} must link to {other}")
+
+    def test_translations_have_the_same_keys(self):
+        def keys(node, prefix=""):
+            out = set()
+            for k, v in node.items():
+                out |= keys(v, f"{prefix}{k}.") if isinstance(v, dict) else {f"{prefix}{k}"}
+            return out
+        folder = COMP / "translations"
+        ref = keys(json.loads((folder / "en.json").read_text("utf-8")))
+        for path in folder.glob("*.json"):
+            self.assertEqual(keys(json.loads(path.read_text("utf-8"))), ref, path.name)
+
+    def test_names_are_english(self):
+        for path in (COMP / "manifest.json", ROOT / "hacs.json"):
+            self.assertEqual(json.loads(path.read_text("utf-8"))["name"], "Prayer times Morocco")
+        for path in (COMP / "blueprints").glob("*.yaml"):
+            head = path.read_text("utf-8").split("input:")[0]
+            self.assertNotIn(" / ", head.split("description")[0], path.name)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-"""Horaires de prière (Maroc) : dépôt JSON ou calcul local."""
+"""Prayer times (Morocco): JSON data repository or local calculation."""
 
 from __future__ import annotations
 
@@ -25,10 +25,10 @@ _CARD_FLAG = f"{DOMAIN}_card_registered"
 
 
 def _install_blueprints(blueprints_root: str) -> None:
-    """Copie les blueprints livrés dans <config>/blueprints/automation/habous_prayer_times/.
+    """Copy the bundled blueprints to <config>/blueprints/automation/habous_prayer_times/.
 
-    Ce dossier appartient à l'intégration : il est réécrit au démarrage pour
-    recevoir les mises à jour. Pour personnaliser un blueprint, dupliquez-le
+    This folder belongs to the integration: it is rewritten at startup to
+    receive updates. To customise a blueprint, duplicate it
     sous un autre nom.
     """
     if not _BLUEPRINTS.is_dir():
@@ -46,7 +46,7 @@ def _manifest_version() -> str:
 
 
 async def _register_card(hass: HomeAssistant) -> None:
-    """Sert la carte Lovelace livrée et la charge automatiquement dans l'interface."""
+    """Serve the bundled Lovelace card and load it automatically in the UI."""
     if hass.data.get(_CARD_FLAG):
         return
     hass.data[_CARD_FLAG] = True
@@ -58,14 +58,14 @@ async def _register_card(hass: HomeAssistant) -> None:
 
 
 def _register_service(hass: HomeAssistant) -> None:
-    """Service habous_prayer_times.recalculate : recalcule un lieu s'il n'est plus à jour."""
+    """Service habous_prayer_times.recalculate: recalculate a place if it is out of date."""
     if hass.services.has_service(DOMAIN, SERVICE_RECALCULATE):
         return
 
     async def _recalculate(call: ServiceCall) -> ServiceResponse:
         coordinators = list(hass.data.get(DOMAIN, {}).values())
         if not coordinators:
-            raise ServiceValidationError("Intégration non configurée")
+            raise ServiceValidationError("Integration not configured")
         entity_id = call.data.get("entity_id")
         result: dict = {}
         found = False

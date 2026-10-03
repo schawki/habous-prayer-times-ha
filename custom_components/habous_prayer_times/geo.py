@@ -1,4 +1,4 @@
-"""Calculs géographiques (aucune donnée ne quitte l'instance Home Assistant)."""
+"""Geographic calculations (no data leaves the Home Assistant instance)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import Any
 
 
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Distance à vol d'oiseau en kilomètres."""
+    """Great-circle distance in kilometres."""
     p1, p2 = radians(lat1), radians(lat2)
     dphi = p2 - p1
     dlmb = radians(lon2 - lon1)
@@ -18,7 +18,7 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 def nearest_cities(
     cities: list[dict[str, Any]], lat: float, lon: float, count: int = 1
 ) -> list[tuple[dict[str, Any], float]]:
-    """Retourne les `count` villes géolocalisées les plus proches, avec distance."""
+    """Return the `count` nearest geolocated cities, with distance."""
     scored = [
         (c, haversine_km(lat, lon, c["lat"], c["lon"]))
         for c in cities

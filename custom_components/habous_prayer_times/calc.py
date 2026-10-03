@@ -1,9 +1,9 @@
-"""Calcul local des horaires de prière (aucun appel réseau).
+"""Local calculation of prayer times (no network call).
 
-Utilise la bibliothèque hors ligne `prayer-times-calculator-offline`
-(celle de l'intégration « Islamic Prayer Times » de Home Assistant) avec la
-méthode « Morocco » : Fajr 19°, Isha 17°. Ces horaires sont calculés : ils
-peuvent différer de quelques minutes des tableaux officiels du Ministère.
+Uses the offline library `prayer-times-calculator-offline`
+(the one used by Home Assistant's "Islamic Prayer Times" integration) with the
+"Morocco" method: Fajr 19°, Isha 17°. These times are calculated: they
+may differ by a few minutes from the Ministry's official tables.
 """
 
 from __future__ import annotations
@@ -47,10 +47,10 @@ def _compute(lat: float, lon: float, day_iso: str, tune: tuple[int, ...]) -> dic
 def compute_day(
     lat: float, lon: float, day: date, tune: dict[str, int] | None = None
 ) -> dict[str, datetime]:
-    """Horaires du jour (datetimes avec fuseau, en UTC) pour des coordonnées.
+    """Times of the day (timezone-aware datetimes, in UTC) for some coordinates.
 
-    Coordonnées arrondies à ~110 m pour limiter les recalculs quand un
-    téléphone bouge un peu. `tune` : ajustement en minutes par prière.
+    Coordinates are rounded to ~110 m to limit recalculations when a
+    phone moves slightly. `tune`: per-prayer adjustment in minutes.
     """
     tune = tune or {}
     return _compute(

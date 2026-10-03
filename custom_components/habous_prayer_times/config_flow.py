@@ -1,4 +1,4 @@
-"""Configuration : source des horaires, ville du logement, puis options."""
+"""Configuration: times source, home city, then options."""
 
 from __future__ import annotations
 
@@ -22,6 +22,7 @@ from homeassistant.helpers.selector import (
 
 from .api import HabousApi, HabousError
 from .const import (
+    CONF_COMPARE,
     CONF_DATA_URL,
     CONF_FALLBACK_LOCAL,
     CONF_FREQUENCY,
@@ -50,7 +51,7 @@ from .geo import nearest_cities
 
 
 def _home_options(cities: list[dict[str, Any]], hass, count: int = 5) -> list[SelectOptionDict]:
-    """Villes les plus proches du logement, avec la distance bien visible."""
+    """Cities closest to the home, with the distance clearly visible."""
     best = nearest_cities(cities, hass.config.latitude, hass.config.longitude, count)
     return [
         SelectOptionDict(
@@ -111,6 +112,7 @@ class HabousConfigFlow(ConfigFlow, domain=DOMAIN):
                     vol.Required(CONF_SOURCE, default=DEFAULT_SOURCE): _source_selector(),
                     vol.Required(CONF_DATA_URL, default=DEFAULT_DATA_URL): str,
                     vol.Required(CONF_FALLBACK_LOCAL, default=True): bool,
+                    vol.Required(CONF_COMPARE, default=True): bool,
                 }
             ),
             errors=errors,
@@ -155,6 +157,7 @@ class HabousOptionsFlow(OptionsFlow):
             vol.Required(CONF_SOURCE, default=conf(entry, CONF_SOURCE, DEFAULT_SOURCE)): _source_selector(),
             vol.Required(CONF_DATA_URL, default=data_url(entry)): str,
             vol.Required(CONF_FALLBACK_LOCAL, default=conf(entry, CONF_FALLBACK_LOCAL, True)): bool,
+            vol.Required(CONF_COMPARE, default=conf(entry, CONF_COMPARE, True)): bool,
         }
         if home_opts:
             schema[

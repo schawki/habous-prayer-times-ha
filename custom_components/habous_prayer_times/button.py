@@ -1,4 +1,4 @@
-"""Bouton « Mettre à jour » (récupération immédiate des horaires)."""
+"""\"Update\" button (fetch the times immediately)."""
 
 from __future__ import annotations
 
@@ -27,8 +27,8 @@ class UpdateButton(ButtonEntity):
         self._attr_unique_id = f"{coordinator.entry.entry_id}_update"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, coordinator.entry.entry_id)},
-            name="Horaires de prière (Habous)",
-            manufacturer="Ministère des Habous et des Affaires Islamiques",
+            name="Prayer times (Habous)",
+            manufacturer="Ministry of Habous and Islamic Affairs",
         )
 
     async def async_press(self) -> None:

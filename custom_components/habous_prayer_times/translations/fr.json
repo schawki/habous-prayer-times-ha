@@ -7,7 +7,8 @@
         "data": {
           "source": "Source des horaires",
           "data_url": "Adresse du dossier de données (URL)",
-          "fallback_local": "Utiliser le calcul local si le fichier du dépôt est absent ou périmé"
+          "fallback_local": "Utiliser le calcul local si le fichier du dépôt est absent ou périmé",
+          "compare": "Comparer avec les horaires des Habous (écart entre heures calculées et publiées)"
         }
       },
       "home": {
@@ -35,6 +36,7 @@
           "source": "Source des horaires",
           "data_url": "Adresse du dossier de données (URL)",
           "fallback_local": "Calcul local si le fichier du dépôt est absent ou périmé",
+          "compare": "Comparer avec les horaires des Habous (écart entre heures calculées et publiées)",
           "home_city_id": "Ville du logement",
           "zones": "Zones supplémentaires",
           "persons": "Personnes (horaires selon leur position)",

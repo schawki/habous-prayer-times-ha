@@ -7,7 +7,8 @@
         "data": {
           "source": "Prayer times source",
           "data_url": "Data folder URL",
-          "fallback_local": "Use local calculation when the repository file is missing or outdated"
+          "fallback_local": "Use local calculation when the repository file is missing or outdated",
+          "compare": "Compare with the Habous times (gap between calculated and published times)"
         }
       },
       "home": {
@@ -35,6 +36,7 @@
           "source": "Prayer times source",
           "data_url": "Data folder URL",
           "fallback_local": "Local calculation when the repository file is missing or outdated",
+          "compare": "Compare with the Habous times (gap between calculated and published times)",
           "home_city_id": "Home city",
           "zones": "Additional zones",
           "persons": "People (times for their current location)",

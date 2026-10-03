@@ -1,10 +1,7 @@
 blueprint:
-  name: "Announce prayer (Music Assistant) / Annoncer la prière (Music Assistant)"
+  name: "Announce prayer (Music Assistant)"
   description: >
-    FR — Diffuse un adhan sur les enceintes choisies à l'heure exacte des prières
-    sélectionnées, pour le lieu du capteur « Prochaine prière » (zone ou personne).
-    Option : adhan différent pour le Fajr, et pas de diffusion si personne n'est à la maison.
-    EN — Plays an adhan on the chosen speakers at the exact time of the selected
+    Plays an adhan on the chosen speakers at the exact time of the selected
     prayers, for the place of the "Next prayer" sensor (zone or person).
     Option: a different adhan for Fajr, and no playback when nobody is home.
   domain: automation
@@ -12,14 +9,14 @@ blueprint:
     min_version: 2024.10.0
   input:
     prayer_sensor:
-      name: "Next prayer sensor / Capteur « Prochaine prière »"
+      name: "Next prayer sensor"
       selector:
         entity:
           domain: sensor
           device_class: timestamp
           integration: habous_prayer_times
     prayers:
-      name: "Prayers / Prières"
+      name: "Prayers"
       default: [fajr, dhuhr, asr, maghrib, isha]
       selector:
         select:
@@ -32,24 +29,24 @@ blueprint:
             - { value: maghrib, label: "Maghrib — المغرب" }
             - { value: isha, label: "Isha — العشاء" }
     speakers:
-      name: "Speakers / Enceintes"
+      name: "Speakers"
       selector:
         entity:
           domain: media_player
           multiple: true
     adhan_url:
-      name: "Adhan audio URL / Adresse de l'adhan"
-      description: "URL reachable by the speakers / URL accessible par les enceintes (ex. /local/adhan.mp3)."
+      name: "Adhan audio URL"
+      description: "URL reachable by the speakers (e.g. /local/adhan.mp3)."
       default: ""
       selector:
         text: {}
     fajr_adhan_url:
-      name: "Fajr adhan URL (optional) / Adhan du Fajr (facultatif)"
+      name: "Fajr adhan URL (optional)"
       default: ""
       selector:
         text: {}
     volume_boost:
-      name: "Volume increase during the announcement / Augmentation de volume (%)"
+      name: "Volume increase during the announcement (%)"
       default: 20
       selector:
         number:
@@ -57,7 +54,7 @@ blueprint:
           max: 60
           unit_of_measurement: "%"
     only_if_home:
-      name: "Only if someone is home / Seulement si quelqu'un est à la maison"
+      name: "Only if someone is home"
       default: true
       selector:
         boolean: {}

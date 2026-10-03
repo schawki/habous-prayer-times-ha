@@ -1,20 +1,20 @@
 /*
- * Habous prayer card — carte Lovelace livrée avec l'intégration « Prayer times Morocco ».
- * Chargée automatiquement par l'intégration (aucune ressource à ajouter).
+ * Habous prayer card — Lovelace card bundled with the "Prayer times Morocco" integration.
+ * Loaded automatically by the integration (no resource to add).
  *
- * Configuration :
+ * Configuration:
  *   type: custom:habous-prayer-card
- *   entity: sensor.prayer_times_maison_prochaine_priere   # n'importe quel capteur du lieu
- *   title: Horaires des Prières                            # facultatif
- *   show_sunrise: true                                     # facultatif
- *   show_details: true                                     # ville, distance, source, mise à jour
- *   relative_style: compact                                # compact (+14:25 / −0:14) ou long
- *   show_comparison: false                                 # heure Habous et heure calculée côte à côte
+ *   entity: sensor.prayer_times_home_next_prayer           # any sensor of the place
+ *   title: Prayer times                                     # optional
+ *   show_sunrise: true                                     # optional
+ *   show_details: true                                     # city, distance, source, last update
+ *   relative_style: compact                                # compact (+14:25 / −0:14) or long
+ *   show_comparison: false                                 # Habous time and calculated time side by side
  */
 
 const DOMAIN = "habous_prayer_times";
 const ORDER = ["fajr", "sunrise", "dhuhr", "asr", "maghrib", "isha"];
-// Demi-soleil sur l'horizon (Chourouk jaune, Maghrib orange) : même style sur tous les appareils.
+// Half sun on the horizon (sunrise yellow, Maghrib orange): same look on every device.
 const halfSun = (color) => `<svg class="hs" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5.5 17a6.5 6.5 0 0 1 13 0Z" fill="${color}" stroke="none"/><path d="M2.5 17h19"/><path d="M12 5.2v2.2M4.9 8.1l1.5 1.5M19.1 8.1l-1.5 1.5M2.8 12.2l2 .6M21.2 12.2l-2 .6"/></svg>`;
 const ICONS = { fajr: "🌘", sunrise: halfSun("#FFC107"), dhuhr: "☀️", asr: "🌤️", maghrib: halfSun("#FF7043"), isha: "🌙" };
 
@@ -69,7 +69,7 @@ TEXT.ar = {
 
 /** Locale d'affichage : chiffres latins pour l'arabe (usage au Maroc). */
 const localeOf = (lang) => (lang === "ar" ? "ar-MA-u-nu-latn" : lang);
-/** Isole un nombre/une heure pour qu'il ne soit pas inversé dans un texte de droite à gauche. */
+/** Isolate a number/time so it is not reversed inside right-to-left text. */
 const ltr = (txt) => `<bdi dir="ltr">${txt}</bdi>`;
 /** Mot au singulier/pluriel (et duel pour l'arabe quand le texte le fournit). */
 const word = (forms, n) => (n === 2 && forms[2] ? forms[2] : forms[n > 1 ? 1 : 0]);
@@ -89,7 +89,7 @@ function keyOf(hass, entityId) {
   return null;
 }
 
-/** Retrouve les capteurs frères (même lieu) à partir d'un capteur quelconque du lieu. */
+/** Find the sibling sensors (same place) from any sensor of the place. */
 function placeSensors(hass, entityId) {
   const base = hass.states[entityId];
   if (!base) return null;
@@ -132,7 +132,7 @@ class HabousPrayerCard extends HTMLElement {
 
   connectedCallback() {
     this._timer = setInterval(() => this._render(), 30000);
-    // Page de nouveau visible : on redemande un recalcul (le serveur ignore s'il est à jour).
+    // Page visible again: ask for a recalculation (the server ignores it if up to date).
     this._vis = () => { if (!document.hidden) { this._autoDone = false; this._render(); } };
     document.addEventListener("visibilitychange", this._vis);
   }
@@ -142,7 +142,7 @@ class HabousPrayerCard extends HTMLElement {
     document.removeEventListener("visibilitychange", this._vis);
   }
 
-  /** Service recalculate : ne recalcule que si le lieu a bougé au-delà de la tolérance ou si le jour a changé. */
+  /** recalculate service: only recalculates if the place moved beyond the tolerance or the day changed. */
   _recalc(entity, manual) {
     if (!this._hass || !entity) return;
     const now = Date.now();
@@ -172,7 +172,7 @@ class HabousPrayerCard extends HTMLElement {
     const diff = date.getTime() - Date.now();
     const mins = Math.round(Math.abs(diff) / 60000);
     if (this._config.relative_style !== "long") {
-      // Condensé : +14:25 = passée depuis 14 h 25 ; −0:14 = dans 14 min.
+      // Compact: +14:25 = passed 14 h 25 ago; −0:14 = in 14 min.
       const hm = `${Math.floor(mins / 60)}:${String(mins % 60).padStart(2, "0")}`;
       return ltr(`${diff >= 0 && mins > 0 ? "−" : "+"}${hm}`);
     }
@@ -186,13 +186,13 @@ class HabousPrayerCard extends HTMLElement {
     return diff >= 0 ? `${t.in} ${body}` : `${body} ${t.ago}`;
   }
 
-  /** Ligne « Habous 05:01 · calcul 05:02 (+1) » (option show_comparison). */
+  /** Line "Habous 05:01 · calc 05:02 (+1)" (show_comparison option). */
   _comparison(st, shown, t, lang) {
     if (!this._config.show_comparison || !st || !st.attributes) return "";
     const a = st.attributes;
     if (!a.repository_time || !a.calculated_time) return "";
-    // Les attributs décrivent le jour du capteur : on ne les affiche que pour cette date
-    // (pas pour « demain » quand la prochaine prière est celle du lendemain).
+    // The attributes describe the sensor's day: only show them for that date
+    // (not for "tomorrow" when the next prayer is tomorrow's).
     if (!st.state || new Date(st.state).getTime() !== shown.getTime()) return "";
     const repo = new Date(a.repository_time), calc = new Date(a.calculated_time);
     if (isNaN(repo) || isNaN(calc)) return "";
@@ -265,8 +265,8 @@ class HabousPrayerCard extends HTMLElement {
     const rows = ORDER.filter((p) => cfg.show_sunrise || p !== "sunrise").map((p) => {
       const st = sensors[p];
       let d = st && st.state && !["unknown", "unavailable"].includes(st.state) ? new Date(st.state) : null;
-      // La prochaine prière peut être celle de demain (après l'Isha) : le capteur
-      // « Prochaine prière » porte alors la bonne date, pas le capteur du jour.
+      // The next prayer can be tomorrow's (after Isha): the "Next prayer"
+      // sensor then carries the right date, not the day's sensor.
       if (p === nextPrayer && next && next.state && !["unknown", "unavailable"].includes(next.state)) {
         const nd = new Date(next.state);
         if (!isNaN(nd)) d = nd;
@@ -284,7 +284,7 @@ class HabousPrayerCard extends HTMLElement {
       <tbody>${rows}</tbody></table>`;
     const rf = el.querySelector("#rf");
     if (rf) rf.addEventListener("click", () => this._recalc(attrs.entity, true));
-    // Ouverture de la page : un seul appel automatique pour un lieu calculé.
+    // Page opened: a single automatic call for a calculated place.
     if (!this._autoDone && attrs.mode === "calculated") {
       this._autoDone = true;
       this._recalc(attrs.entity, false);
@@ -340,7 +340,7 @@ if (!customElements.get("habous-prayer-card")) {
   window.customCards.push({
     type: "habous-prayer-card",
     name: "Prayer times Morocco",
-    description: "Horaires de prière d'un lieu (intégration Prayer times Morocco / Horaires de prière Maroc).",
+    description: "Prayer times of a place (Prayer times Morocco integration).",
     preview: false,
   });
 }

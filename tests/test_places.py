@@ -175,7 +175,8 @@ class ChoiceTests(unittest.TestCase):
         hass, coord = make(persons=["person.saad"], options={"source": "local"})
         person(hass, "saad", "not_home", 34.00, -6.85)
         info = coord.resolve_places()["person.saad"]
-        self.assertEqual((info["city_id"], info["mode"]), (None, "calculated"))
+        # La ville Habous (3) ne sert qu'à la comparaison ; les heures sont calculées.
+        self.assertEqual((info["city_id"], info["mode"]), (3, "calculated"))
 
     def test_times_come_from_the_anchor_point(self):
         hass, coord = make(persons=["person.saad"])
@@ -183,6 +184,37 @@ class ChoiceTests(unittest.TestCase):
         coord.data = {"places": coord.resolve_places()}
         found = coord.times_for("person.saad", _NOW["value"].date())
         self.assertEqual(found[1]["source"], const.SRC_LABEL_LOCAL)  # calcul, même sans « fallback »
+
+
+class CompareTests(unittest.TestCase):
+    def setUp(self):
+        _NOW["value"] = datetime(2026, 10, 3, 12, 0, tzinfo=timezone.utc)
+
+    def _coord(self, **options):
+        hass, coord = make(options=options)
+        days = {"2026-10-03": {p: "06:00" for p in const.PRAYERS}}
+        coord._cache = {"58": {"days": days, "utc_offset": "+00:00", "updated": "x"}}
+        coord.data = {"places": coord.resolve_places()}
+        return coord
+
+    def test_local_source_compares_by_default(self):
+        coord = self._coord(source="local")
+        day = _NOW["value"].date()
+        self.assertEqual(coord.times_for("zone.home", day)[1]["source"], const.SRC_LABEL_LOCAL)
+        self.assertIsNotNone(coord.comparison_for("zone.home", day))
+        self.assertTrue(coord.uses_repo)
+
+    def test_local_source_without_compare_reads_nothing(self):
+        coord = self._coord(source="local", compare=False)
+        self.assertIsNone(coord.comparison_for("zone.home", _NOW["value"].date()))
+        self.assertFalse(coord.uses_repo)
+
+    def test_repository_source_without_compare(self):
+        coord = self._coord(compare=False)
+        day = _NOW["value"].date()
+        self.assertEqual(coord.times_for("zone.home", day)[1]["source"], const.SRC_LABEL_REPO)
+        self.assertIsNone(coord.comparison_for("zone.home", day))
+        self.assertTrue(coord.uses_repo)
 
 
 class RecalcTests(unittest.TestCase):

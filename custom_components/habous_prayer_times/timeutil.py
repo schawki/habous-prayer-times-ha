@@ -1,4 +1,4 @@
-"""Petits utilitaires de temps, sans dépendance à Home Assistant (donc testables seuls)."""
+"""Small time utilities, with no Home Assistant dependency (so testable on their own)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ _OFFSET_RE = re.compile(r"^([+-])(\d{2}):(\d{2})$")
 
 
 def tz_from_offset(utc_offset: str | None) -> tzinfo | None:
-    """« +00:00 » / « -01:00 » -> fuseau fixe ; None si absent ou invalide."""
+    """\"+00:00\" / \"-01:00\" -> fixed timezone; None if missing or invalid."""
     if not utc_offset or not (m := _OFFSET_RE.match(utc_offset)):
         return None
     delta = timedelta(hours=int(m.group(2)), minutes=int(m.group(3)))
@@ -17,5 +17,5 @@ def tz_from_offset(utc_offset: str | None) -> tzinfo | None:
 
 
 def diff_minutes(repository: datetime, calculated: datetime) -> int:
-    """Écart « calculé − dépôt » en minutes entières."""
+    """Gap \"calculated − repository\" in whole minutes."""
     return round((calculated - repository).total_seconds() / 60)

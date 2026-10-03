@@ -1,4 +1,4 @@
-"""Capteurs : six horaires + prochaine prière pour chaque lieu suivi."""
+"""Sensors: six times + next prayer for each tracked place."""
 
 from __future__ import annotations
 
@@ -14,7 +14,14 @@ from homeassistant.helpers.event import async_track_point_in_time, async_track_t
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
-from .const import ADHAN_PRAYERS, DOMAIN, NEXT_PRAYER_HOLD_SECONDS, PRAYERS, SRC_LABEL_LOCAL
+from .const import (
+    ADHAN_PRAYERS,
+    DOMAIN,
+    NEXT_PRAYER_HOLD_SECONDS,
+    PRAYERS,
+    SOURCE_REPO,
+    SRC_LABEL_LOCAL,
+)
 from .coordinator import HabousCoordinator
 from .timeutil import diff_minutes
 
@@ -77,7 +84,7 @@ class _PlaceSensor(CoordinatorEntity[HabousCoordinator], SensorEntity):
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        # Le jour change : on réécrit l'état peu après minuit.
+        # The day changes: rewrite the state shortly after midnight.
         self.async_on_remove(
             async_track_time_change(self.hass, self._midnight, hour=0, minute=0, second=30)
         )
@@ -101,7 +108,7 @@ class PrayerSensor(_PlaceSensor):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Ajoute, quand le dépôt couvre le jour : heure Habous, heure calculée, écart."""
+        """Add, when the repository covers the day: Habous time, calculated time, gap."""
         attrs = super().extra_state_attributes
         both = self.coordinator.comparison_for(self._place_id, dt_util.now().date())
         if both:
@@ -109,11 +116,13 @@ class PrayerSensor(_PlaceSensor):
             attrs["repository_time"] = repo.isoformat()
             attrs["calculated_time"] = calc_time.isoformat()
             attrs["difference_min"] = diff_minutes(repo, calc_time)
+            if self.coordinator.source != SOURCE_REPO:
+                attrs["repository_role"] = "comparison"  # Habous times: comparison only
         return attrs
 
 
 class NextPrayerSensor(_PlaceSensor):
-    """Prochaine prière. Attribut `prayer` : fajr, dhuhr, asr, maghrib ou isha."""
+    """Next prayer. `prayer` attribute: fajr, dhuhr, asr, maghrib or isha."""
 
     _attr_translation_key = "next_prayer"
 
