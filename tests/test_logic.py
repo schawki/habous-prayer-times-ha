@@ -1,10 +1,7 @@
-"""Tests sans Home Assistant : calcul local, parseur du dépôt, géo, fréquences, blueprints, traductions.
+"""Tests sans Home Assistant : calcul local, décalage horaire, géo, fréquences, blueprints, traductions, carte.
 
 Lancer : python -m unittest discover -s tests -v
 Nécessite : pip install prayer-times-calculator-offline pyyaml
-
-NB : la page HTML du test du parseur est SYNTHÉTIQUE (structure supposée) ; elle valide
-la logique, pas la compatibilité avec la vraie page des Habous.
 """
 
 import importlib
@@ -28,10 +25,7 @@ sys.modules["hp"] = pkg
 calc = importlib.import_module("hp.calc")
 geo = importlib.import_module("hp.geo")
 const = importlib.import_module("hp.const")
-
-spec = importlib.util.spec_from_file_location("habous_parser", ROOT / "tools" / "habous_parser.py")
-parser = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(parser)
+timeutil = importlib.import_module("hp.timeutil")
 
 
 def local(dt: datetime) -> str:
@@ -65,34 +59,70 @@ class CalcTests(unittest.TestCase):
         self.assertTrue(all(t.tzinfo for t in times))
 
 
-def synthetic_page(start: date, n: int = 30) -> str:
-    rows = []
-    for i in range(n):
-        d = start + timedelta(days=i)
-        rows.append(
-            f"<tr><td>{i + 1}</td><td>{d.day}</td><td>jour</td>"
-            f"<td>05:{10 + i % 5:02d}</td><td>06:40</td><td>13:35</td>"
-            f"<td>17:05</td><td>19:58</td><td>21:12</td></tr>"
-        )
-    cities = "".join(f'<option value="{i}">Ville {i}</option>' for i in range(1, 15))
-    return f"<select name='ville'>{cities}</select><table>{''.join(rows)}</table>"
+class TimeUtilTests(unittest.TestCase):
+    def test_offsets(self):
+        from datetime import timezone
+        self.assertEqual(timeutil.tz_from_offset("+00:00").utcoffset(None), timedelta(0))
+        self.assertEqual(timeutil.tz_from_offset("+01:00").utcoffset(None), timedelta(hours=1))
+        self.assertEqual(timeutil.tz_from_offset("-02:30").utcoffset(None), -timedelta(hours=2, minutes=30))
+        for bad in (None, "", "1h", "+1:00", "UTC"):
+            self.assertIsNone(timeutil.tz_from_offset(bad))
+
+    def test_json_time_uses_file_offset(self):
+        # 12:25 locales à +00:00 = 12:25 UTC ; à +01:00 = 11:25 UTC (la base de HA n'intervient pas)
+        d = date(2026, 10, 3)
+        utc = lambda off: datetime(d.year, d.month, d.day, 12, 25, tzinfo=timeutil.tz_from_offset(off)).astimezone(
+            __import__("datetime").timezone.utc).strftime("%H:%M")
+        self.assertEqual(utc("+00:00"), "12:25")
+        self.assertEqual(utc("+01:00"), "11:25")
+
+    def test_difference_is_calculated_minus_repository(self):
+        repo = datetime(2026, 10, 3, 6, 23, tzinfo=timeutil.tz_from_offset("+00:00"))
+        self.assertEqual(timeutil.diff_minutes(repo, repo + timedelta(minutes=3, seconds=10)), 3)
+        self.assertEqual(timeutil.diff_minutes(repo, repo - timedelta(minutes=1)), -1)
+        self.assertEqual(timeutil.diff_minutes(repo, repo), 0)
 
 
-class ParserTests(unittest.TestCase):
-    def test_month_crossing_two_gregorian_months(self):
-        out = parser.parse_month(synthetic_page(date(2026, 9, 20)), today=date(2026, 10, 2))
-        self.assertEqual(len(out), 30)
-        self.assertEqual(out["2026-10-02"]["fajr"], "05:12")
-        self.assertEqual(list(out)[0], "2026-09-20")
+class DefaultsTests(unittest.TestCase):
+    def test_json_is_default_with_local_fallback(self):
+        self.assertEqual(const.DEFAULT_SOURCE, const.SOURCE_REPO)
+        self.assertIn("habous-prayer-times-data", const.DEFAULT_DATA_URL)
+        self.assertTrue(const.DEFAULT_DATA_URL.endswith("/data"))
+        coord = (COMP / "coordinator.py").read_text("utf-8")
+        self.assertIn("CONF_FALLBACK_LOCAL, True", coord)
 
-    def test_inconsistent_page_raises(self):
-        html = synthetic_page(date(2026, 9, 20)).replace("<td>3</td><td>22</td>", "<td>3</td><td>9</td>")
-        with self.assertRaises(parser.ParseError):
-            parser.parse_month(html, today=date(2026, 10, 2))
+    def test_legacy_data_url_is_replaced(self):
+        src = (COMP / "coordinator.py").read_text("utf-8")
+        body = src[src.index("def data_url"): src.index("def is_due")]
+        ns = {"ConfigEntry": object, "conf": lambda e, k, d=None: e.get(k, d), "CONF_DATA_URL": "data_url",
+              "DEFAULT_DATA_URL": const.DEFAULT_DATA_URL, "LEGACY_DATA_URLS": const.LEGACY_DATA_URLS}
+        exec("from __future__ import annotations\n" + body, ns)  # noqa: S102
+        f = ns["data_url"]
+        self.assertEqual(f({"data_url": const.LEGACY_DATA_URLS[0]}), const.DEFAULT_DATA_URL)
+        self.assertEqual(f({"data_url": const.LEGACY_DATA_URLS[0] + "/"}), const.DEFAULT_DATA_URL)
+        self.assertEqual(f({}), const.DEFAULT_DATA_URL)
+        self.assertEqual(f({"data_url": "https://exemple.org/data"}), "https://exemple.org/data")
 
-    def test_garbage_raises(self):
-        with self.assertRaises(parser.ParseError):
-            parser.parse_month("<html>rien</html>", today=date(2026, 10, 2))
+    def test_sunrise_default_tune(self):
+        self.assertEqual(const.DEFAULT_TUNE, {"sunrise": -3})
+
+    def test_repository_offset_is_read_and_comparison_exposed(self):
+        api = (COMP / "api.py").read_text("utf-8")
+        self.assertIn('"utc_offset"', api)
+        self.assertNotIn("_BUNDLED_CITIES", api)
+        coord = (COMP / "coordinator.py").read_text("utf-8")
+        self.assertIn("def comparison_for", coord)
+        sensor = (COMP / "sensor.py").read_text("utf-8")
+        for attr in ("repository_time", "calculated_time", "difference_min"):
+            self.assertIn(attr, sensor)
+        card = (COMP / "frontend" / "habous-prayer-card.js").read_text("utf-8")
+        for token in ("show_comparison", "repository_time", "calculated_time", "difference_min"):
+            self.assertIn(token, card)
+
+    def test_all_python_modules_parse(self):
+        import ast
+        for f in COMP.glob("*.py"):
+            ast.parse(f.read_text("utf-8"), filename=str(f))
 
 
 class GeoTests(unittest.TestCase):
@@ -167,9 +197,12 @@ class MetaTests(unittest.TestCase):
             for k, v in d.items():
                 yield from keys(v, f"{p}{k}.") if isinstance(v, dict) else [f"{p}{k}"]
 
-        fr = set(keys(json.loads((COMP / "translations" / "fr.json").read_text("utf-8"))))
-        en = set(keys(json.loads((COMP / "translations" / "en.json").read_text("utf-8"))))
-        self.assertEqual(fr, en)
+        files = sorted((COMP / "translations").glob("*.json"))
+        self.assertGreaterEqual(len(files), 2)
+        sets = {f.stem: set(keys(json.loads(f.read_text("utf-8")))) for f in files}
+        reference = sets["fr"]
+        for lang, found in sets.items():
+            self.assertEqual(found, reference, f"{lang}: {found ^ reference}")
 
     def test_option_fields_are_translated(self):
         fr = json.loads((COMP / "translations" / "fr.json").read_text("utf-8"))
@@ -182,6 +215,36 @@ class MetaTests(unittest.TestCase):
         m = json.loads((COMP / "manifest.json").read_text("utf-8"))
         self.assertTrue(any("prayer-times-calculator-offline" in r for r in m["requirements"]))
         self.assertEqual(list(m)[:0] + sorted(m), sorted(m))
+
+
+class ArabicTests(unittest.TestCase):
+    ar = json.loads((COMP / "translations" / "ar.json").read_text("utf-8"))
+
+    def test_prayer_names_follow_french_and_english(self):
+        sensors = self.ar["entity"]["sensor"]
+        self.assertEqual(
+            {k: v["name"] for k, v in sensors.items()},
+            {"fajr": "الفجر", "sunrise": "الشروق", "dhuhr": "الظهر", "asr": "العصر",
+             "maghrib": "المغرب", "isha": "العشاء", "next_prayer": "الصلاة القادمة"},
+        )
+
+    def test_card_has_arabic_and_rtl(self):
+        js = (COMP / "frontend" / "habous-prayer-card.js").read_text("utf-8")
+        self.assertIn("TEXT.ar", js)
+        self.assertIn('"rtl"', js)
+        self.assertIn("nu-latn", js)  # chiffres latins
+        for ar_word in ("الفجر", "الأوقاف"):
+            self.assertIn(ar_word, js)
+
+    def test_blueprint_offers_arabic(self):
+        bp = (COMP / "blueprints" / "notify_prayer.yaml").read_text("utf-8")
+        self.assertIn("value: ar", bp)
+        self.assertIn("حان الآن وقت", bp)
+        for f in ("notify_prayer.yaml", "announce_prayer_music_assistant.yaml"):
+            self.assertIn("Fajr — الفجر", (COMP / "blueprints" / f).read_text("utf-8"))
+
+    def test_version_bumped(self):
+        self.assertEqual(json.loads((COMP / "manifest.json").read_text("utf-8"))["version"], "0.4.0")
 
 
 class CardTests(unittest.TestCase):

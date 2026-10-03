@@ -28,9 +28,17 @@ DEFAULT_FREQUENCY = FREQ_MONTHLY
 # Adresse RAW du dossier « data » du dépôt GitHub (source « dépôt de données »).
 # Modifiable à tout moment dans les options de l'intégration.
 DEFAULT_DATA_URL = (
-    "https://raw.githubusercontent.com/schawki/habous-prayer-times-ha/main/data"
+    "https://raw.githubusercontent.com/schawki/habous-prayer-times-data/main/data"
+)
+# Anciennes adresses par défaut (0.1 à 0.3) : remplacées automatiquement par la nouvelle.
+LEGACY_DATA_URLS = (
+    "https://raw.githubusercontent.com/schawki/habous-prayer-times-ha/main/data",
 )
 USER_AGENT = "habous-prayer-times-ha (Home Assistant custom integration)"
+
+# Ajustements par défaut du calcul local (minutes). Mesuré sur Casablanca du 13/09 au
+# 12/10/2026 : le calcul est à ±1 min des Habous, sauf le Chourouk (+3 à +4 min).
+DEFAULT_TUNE = {"sunrise": -3}
 
 # Méthode de la bibliothèque hors ligne : Fajr 19°, Isha 17°.
 CALCULATION_METHOD = "morocco"

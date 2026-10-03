@@ -29,12 +29,14 @@ from .const import (
     DEFAULT_DATA_URL,
     DEFAULT_FREQUENCY,
     DEFAULT_SOURCE,
+    DEFAULT_TUNE,
     DOMAIN,
     FREQ_DAILY,
     FREQ_MANUAL,
     FREQ_MONTHLY,
     FREQ_WEEKLY,
     HOME_ZONE,
+    LEGACY_DATA_URLS,
     PRAYERS,
     SOURCE_LOCAL,
     SOURCE_REPO,
@@ -43,6 +45,7 @@ from .const import (
     STORAGE_VERSION,
 )
 from .geo import haversine_km, nearest_cities
+from .timeutil import tz_from_offset
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -50,6 +53,12 @@ _LOGGER = logging.getLogger(__name__)
 def conf(entry: ConfigEntry, key: str, default: Any = None) -> Any:
     """Option si définie, sinon donnée d'installation."""
     return entry.options.get(key, entry.data.get(key, default))
+
+
+def data_url(entry: ConfigEntry) -> str:
+    """Adresse des données ; l'ancienne adresse par défaut est remplacée par la nouvelle."""
+    url = str(conf(entry, CONF_DATA_URL, DEFAULT_DATA_URL))
+    return DEFAULT_DATA_URL if url.rstrip("/") in LEGACY_DATA_URLS else url
 
 
 def is_due(frequency: str, last: datetime | None, now: datetime) -> bool:
@@ -67,10 +76,15 @@ def is_due(frequency: str, last: datetime | None, now: datetime) -> bool:
     return False
 
 
-def _at(day_iso: str, hhmm: str) -> datetime:
+def _tzinfo(utc_offset: str | None):
+    """Décalage écrit dans le fichier du dépôt, sinon fuseau de Home Assistant."""
+    return tz_from_offset(utc_offset) or dt_util.get_default_time_zone()
+
+
+def _at(day_iso: str, hhmm: str, utc_offset: str | None = None) -> datetime:
     d = date.fromisoformat(day_iso)
     h, m = map(int, hhmm.split(":"))
-    return datetime(d.year, d.month, d.day, h, m, tzinfo=dt_util.get_default_time_zone())
+    return datetime(d.year, d.month, d.day, h, m, tzinfo=_tzinfo(utc_offset))
 
 
 class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -87,7 +101,9 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.entry = entry
         self.source: str = conf(entry, CONF_SOURCE, DEFAULT_SOURCE)
         self.fallback_local: bool = conf(entry, CONF_FALLBACK_LOCAL, True)
-        self.tune = {p: int(conf(entry, f"{CONF_TUNE_PREFIX}{p}", 0)) for p in PRAYERS}
+        self.tune = {
+            p: int(conf(entry, f"{CONF_TUNE_PREFIX}{p}", DEFAULT_TUNE.get(p, 0))) for p in PRAYERS
+        }
         self._store: Store = Store(hass, STORAGE_VERSION, f"{DOMAIN}.{entry.entry_id}")
         self._cache: dict[str, dict[str, Any]] = {}  # city_id(str) -> {"days", "updated"}
         self._last_check: datetime | None = None
@@ -96,8 +112,7 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._force = False
         self.api = HabousApi(
             async_get_clientsession(hass),
-            conf(entry, CONF_DATA_URL, DEFAULT_DATA_URL),
-            hass.async_add_executor_job,
+            data_url(entry),
         )
 
     # ------------------------------------------------------------- lieux
@@ -170,6 +185,22 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return info["city_name"] or f"{info['lat']:.2f}, {info['lon']:.2f}"
 
     # ------------------------------------------------------------ horaires
+    def _repository_times(
+        self, place: dict[str, Any], day: date
+    ) -> tuple[dict[str, datetime], dict[str, Any]] | None:
+        """Horaires du dépôt (cache) pour la ville du lieu, s'ils couvrent ce jour."""
+        if place["city_id"] is None:
+            return None
+        cached = self._cache.get(str(place["city_id"]))
+        if not cached or day.isoformat() not in cached["days"]:
+            return None
+        raw = cached["days"][day.isoformat()]
+        offset = cached.get("utc_offset")
+        return (
+            {p: _at(day.isoformat(), raw[p], offset) for p in PRAYERS},
+            {"source": SRC_LABEL_REPO, "updated": cached.get("updated")},
+        )
+
     def times_for(
         self, place_id: str, day: date
     ) -> tuple[dict[str, datetime], dict[str, Any]] | None:
@@ -177,20 +208,30 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         place = (self.data or {}).get("places", {}).get(place_id)
         if not place:
             return None
-        if self.source == SOURCE_REPO and place["city_id"] is not None:
-            cached = self._cache.get(str(place["city_id"]))
-            if cached and day.isoformat() in cached["days"]:
-                raw = cached["days"][day.isoformat()]
-                return (
-                    {p: _at(day.isoformat(), raw[p]) for p in PRAYERS},
-                    {"source": SRC_LABEL_REPO, "updated": cached.get("updated")},
-                )
+        if self.source == SOURCE_REPO and (found := self._repository_times(place, day)):
+            return found
         if self.source == SOURCE_LOCAL or self.fallback_local:
             return (
                 calc.compute_day(place["lat"], place["lon"], day, self.tune),
                 {"source": SRC_LABEL_LOCAL, "updated": None},
             )
         return None
+
+    def comparison_for(self, place_id: str, day: date) -> dict[str, dict[str, datetime]] | None:
+        """Heures du dépôt ET du calcul (avec ajustements), pour les comparer.
+
+        None si l'une des deux manque (source locale, jour absent du dépôt…).
+        """
+        place = (self.data or {}).get("places", {}).get(place_id)
+        if not place or self.source != SOURCE_REPO:
+            return None
+        found = self._repository_times(place, day)
+        if not found:
+            return None
+        return {
+            "repository": found[0],
+            "calculated": calc.compute_day(place["lat"], place["lon"], day, self.tune),
+        }
 
     # --------------------------------------------------------------- cache
     async def async_load_cache(self) -> None:

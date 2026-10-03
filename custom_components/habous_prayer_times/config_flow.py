@@ -32,6 +32,7 @@ from .const import (
     CONF_ZONES,
     DEFAULT_DATA_URL,
     DEFAULT_FREQUENCY,
+    DEFAULT_TUNE,
     DEFAULT_SOURCE,
     DOMAIN,
     FREQUENCIES,
@@ -40,7 +41,7 @@ from .const import (
     SOURCE_REPO,
     SOURCES,
 )
-from .coordinator import conf
+from .coordinator import conf, data_url
 from .geo import nearest_cities
 
 
@@ -88,7 +89,6 @@ class HabousConfigFlow(ConfigFlow, domain=DOMAIN):
             api = HabousApi(
                 async_get_clientsession(self.hass),
                 user_input[CONF_DATA_URL],
-                self.hass.async_add_executor_job,
             )
             try:
                 self._cities = await api.async_get_cities()
@@ -149,7 +149,7 @@ class HabousOptionsFlow(OptionsFlow):
 
         schema: dict[Any, Any] = {
             vol.Required(CONF_SOURCE, default=conf(entry, CONF_SOURCE, DEFAULT_SOURCE)): _source_selector(),
-            vol.Required(CONF_DATA_URL, default=conf(entry, CONF_DATA_URL, DEFAULT_DATA_URL)): str,
+            vol.Required(CONF_DATA_URL, default=data_url(entry)): str,
             vol.Required(CONF_FALLBACK_LOCAL, default=conf(entry, CONF_FALLBACK_LOCAL, True)): bool,
         }
         if home_opts:
@@ -173,7 +173,7 @@ class HabousOptionsFlow(OptionsFlow):
         )
         for prayer in PRAYERS:
             key = f"{CONF_TUNE_PREFIX}{prayer}"
-            schema[vol.Optional(key, default=conf(entry, key, 0))] = NumberSelector(
+            schema[vol.Optional(key, default=conf(entry, key, DEFAULT_TUNE.get(prayer, 0)))] = NumberSelector(
                 NumberSelectorConfig(
                     min=-30, max=30, step=1, unit_of_measurement="min", mode=NumberSelectorMode.BOX
                 )

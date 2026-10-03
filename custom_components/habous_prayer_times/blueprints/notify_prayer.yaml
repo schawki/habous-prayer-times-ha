@@ -1,7 +1,7 @@
 blueprint:
   name: "Prayer notification / Notification de prière"
   description: >
-    FR — Envoie une notification à l'heure (ou quelques minutes avant) des prières
+    FR/AR/EN — Envoie une notification à l'heure (ou quelques minutes avant) des prières
     que vous choisissez, pour le lieu du capteur « Prochaine prière » sélectionné.
     Choisissez le capteur d'une PERSONNE pour être notifié selon l'endroit où elle
     se trouve réellement, ou celui d'une zone (logement, bureau…).
@@ -57,6 +57,7 @@ blueprint:
           options:
             - { value: fr, label: Français }
             - { value: en, label: English }
+            - { value: ar, label: العربية }
     notify_action:
       name: "Notification action / Action de notification"
       description: >
@@ -80,12 +81,11 @@ variables:
   wanted: !input prayers
   lang: !input language
   offset: !input offset
-  names:
-    fajr: Fajr
-    dhuhr: Dhuhr
-    asr: Asr
-    maghrib: Maghrib
-    isha: Isha
+  names_by_lang:
+    fr: { fajr: Fajr, dhuhr: Dhuhr, asr: Asr, maghrib: Maghrib, isha: Isha }
+    en: { fajr: Fajr, dhuhr: Dhuhr, asr: Asr, maghrib: Maghrib, isha: Isha }
+    ar: { fajr: الفجر, dhuhr: الظهر, asr: العصر, maghrib: المغرب, isha: العشاء }
+  names: "{{ names_by_lang.get(lang, names_by_lang['fr']) }}"
   prayer: "{{ state_attr(sensor, 'prayer') }}"
   place: "{{ state_attr(sensor, 'place') }}"
   prayer_name: "{{ names.get(prayer, prayer) }}"
@@ -93,7 +93,13 @@ variables:
   minutes_before: >-
     {{ offset.replace('-', '').split(':')[1] | int(0) if offset.startswith('-') else 0 }}
   message: >-
-    {% if lang == 'en' %}
+    {% if lang == 'ar' %}
+      {% if minutes_before | int > 0 -%}
+        {{ prayer_name }} عند {{ prayer_time }} (بعد {{ minutes_before }} دقيقة) — {{ place }}
+      {%- else -%}
+        حان الآن وقت {{ prayer_name }} ({{ prayer_time }}) — {{ place }}
+      {%- endif %}
+    {% elif lang == 'en' %}
       {% if minutes_before | int > 0 -%}
         {{ prayer_name }} at {{ prayer_time }} (in {{ minutes_before }} min) — {{ place }}
       {%- else -%}

@@ -16,6 +16,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import ADHAN_PRAYERS, DOMAIN, NEXT_PRAYER_HOLD_SECONDS, PRAYERS
 from .coordinator import HabousCoordinator
+from .timeutil import diff_minutes
 
 
 async def async_setup_entry(
@@ -91,6 +92,18 @@ class PrayerSensor(_PlaceSensor):
     def native_value(self) -> datetime | None:
         found = self._times(dt_util.now().date())
         return found[0][self._prayer] if found else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Ajoute, quand le dépôt couvre le jour : heure Habous, heure calculée, écart."""
+        attrs = super().extra_state_attributes
+        both = self.coordinator.comparison_for(self._place_id, dt_util.now().date())
+        if both:
+            repo, calc_time = both["repository"][self._prayer], both["calculated"][self._prayer]
+            attrs["repository_time"] = repo.isoformat()
+            attrs["calculated_time"] = calc_time.isoformat()
+            attrs["difference_min"] = diff_minutes(repo, calc_time)
+        return attrs
 
 
 class NextPrayerSensor(_PlaceSensor):

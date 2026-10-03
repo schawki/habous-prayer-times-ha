@@ -9,6 +9,7 @@
  *   show_sunrise: true                                     # facultatif
  *   show_details: true                                     # ville, distance, source, mise à jour
  *   relative_style: compact                                # compact (+14:25 / −0:14) ou long
+ *   show_comparison: false                                 # heure Habous et heure calculée côte à côte
  */
 
 const DOMAIN = "habous_prayer_times";
@@ -29,6 +30,7 @@ const TEXT = {
     e_entity: "Capteur du lieu", e_title: "Titre", e_sunrise: "Afficher le lever du soleil",
     e_details: "Afficher ville, distance et source",
     e_relative: "Temps relatif", e_compact: "Condensé (+14:25 / −0:14)", e_long: "Détaillé (il y a 14 heures…)",
+    cmp_repo: "Habous", cmp_calc: "calcul", e_comparison: "Comparer l'heure Habous et l'heure calculée",
   },
   en: {
     title: "Prayer times",
@@ -43,8 +45,32 @@ const TEXT = {
     e_entity: "Place sensor", e_title: "Title", e_sunrise: "Show sunrise",
     e_details: "Show city, distance and source",
     e_relative: "Relative time", e_compact: "Compact (+14:25 / −0:14)", e_long: "Long (14 hours ago…)",
+    cmp_repo: "Habous", cmp_calc: "calculated", e_comparison: "Compare Habous time and calculated time",
   },
 };
+
+TEXT.ar = {
+  title: "أوقات الصلاة",
+  prayer: "الصلاة", time: "الوقت", relative: "الفارق",
+  names: { fajr: "الفجر", sunrise: "الشروق", dhuhr: "الظهر", asr: "العصر", maghrib: "المغرب", isha: "العشاء" },
+  in: "بعد", ago: "منذ", now: "الآن",
+  h: ["ساعة", "ساعات", "ساعتان"], m: ["دقيقة", "دقائق", "دقيقتان"], less: "أقل من دقيقة",
+  city: "مدينة الأوقاف", source: "المصدر", updated: "آخر تحديث",
+  sources: { repository: "مستودع البيانات", local_calculation: "الحساب المحلي" },
+  missing: "اختر مستشعر «الصلاة القادمة» (أو أي مستشعر للمكان).",
+  unavailable: "المستشعرات غير متاحة",
+  e_entity: "مستشعر المكان", e_title: "العنوان", e_sunrise: "إظهار الشروق",
+  e_details: "إظهار المدينة والمسافة والمصدر",
+  e_relative: "الوقت النسبي", e_compact: "مختصر (+14:25 / −0:14)", e_long: "مفصّل (منذ 14 ساعة…)",
+  cmp_repo: "الأوقاف", cmp_calc: "حساب", e_comparison: "مقارنة وقت الأوقاف بالوقت المحسوب",
+};
+
+/** Locale d'affichage : chiffres latins pour l'arabe (usage au Maroc). */
+const localeOf = (lang) => (lang === "ar" ? "ar-MA-u-nu-latn" : lang);
+/** Isole un nombre/une heure pour qu'il ne soit pas inversé dans un texte de droite à gauche. */
+const ltr = (txt) => `<bdi dir="ltr">${txt}</bdi>`;
+/** Mot au singulier/pluriel (et duel pour l'arabe quand le texte le fournit). */
+const word = (forms, n) => (n === 2 && forms[2] ? forms[2] : forms[n > 1 ? 1 : 0]);
 
 const SUFFIX_KEYS = {
   fajr: "fajr", chourouk: "sunrise", sunrise: "sunrise", dhuhr: "dhuhr", asr: "asr",
@@ -124,7 +150,7 @@ class HabousPrayerCard extends HTMLElement {
     const opts = { hour: "2-digit", minute: "2-digit" };
     if (tf === "12") opts.hour12 = true;
     else if (tf === "24" || tf === undefined) opts.hour12 = false;
-    return new Intl.DateTimeFormat(lang, opts).format(date);
+    return new Intl.DateTimeFormat(localeOf(lang), opts).format(date);
   }
 
   _relative(date, t) {
@@ -133,16 +159,32 @@ class HabousPrayerCard extends HTMLElement {
     if (this._config.relative_style !== "long") {
       // Condensé : +14:25 = passée depuis 14 h 25 ; −0:14 = dans 14 min.
       const hm = `${Math.floor(mins / 60)}:${String(mins % 60).padStart(2, "0")}`;
-      return `${diff >= 0 && mins > 0 ? "−" : "+"}${hm}`;
+      return ltr(`${diff >= 0 && mins > 0 ? "−" : "+"}${hm}`);
     }
     if (mins < 1) return t.now;
     const h = Math.floor(mins / 60), m = mins % 60;
     const parts = [];
-    if (h) parts.push(`${h} ${t.h[h > 1 ? 1 : 0]}`);
-    if (m) parts.push(`${m} ${t.m[m > 1 ? 1 : 0]}`);
+    if (h) parts.push(`${h} ${word(t.h, h)}`);
+    if (m) parts.push(`${m} ${word(t.m, m)}`);
     const body = parts.join(" ");
-    if (t === TEXT.fr) return diff >= 0 ? `${t.in} ${body}` : `${t.ago} ${body}`;
+    if (t === TEXT.fr || t === TEXT.ar) return diff >= 0 ? `${t.in} ${body}` : `${t.ago} ${body}`;
     return diff >= 0 ? `${t.in} ${body}` : `${body} ${t.ago}`;
+  }
+
+  /** Ligne « Habous 05:01 · calcul 05:02 (+1) » (option show_comparison). */
+  _comparison(st, shown, t, lang) {
+    if (!this._config.show_comparison || !st || !st.attributes) return "";
+    const a = st.attributes;
+    if (!a.repository_time || !a.calculated_time) return "";
+    // Les attributs décrivent le jour du capteur : on ne les affiche que pour cette date
+    // (pas pour « demain » quand la prochaine prière est celle du lendemain).
+    if (!st.state || new Date(st.state).getTime() !== shown.getTime()) return "";
+    const repo = new Date(a.repository_time), calc = new Date(a.calculated_time);
+    if (isNaN(repo) || isNaN(calc)) return "";
+    const diff = a.difference_min;
+    const sign = diff > 0 ? "+" : diff < 0 ? "−" : "";
+    const tail = typeof diff === "number" ? ` ${ltr(`(${sign}${Math.abs(diff)})`)}` : "";
+    return `<div class="cmp">${t.cmp_repo} ${ltr(this._fmtTime(repo, lang))} · ${t.cmp_calc} ${ltr(this._fmtTime(calc, lang))}${tail}</div>`;
   }
 
   _render() {
@@ -154,21 +196,23 @@ class HabousPrayerCard extends HTMLElement {
         h2{margin:0 0 4px;font-size:var(--ha-card-header-font-size,24px);font-weight:400;color:var(--primary-text-color)}
         .sub{color:var(--secondary-text-color);font-size:13px;margin-bottom:12px;line-height:1.4}
         table{width:100%;border-collapse:collapse}
-        th{text-align:left;color:var(--secondary-text-color);font-weight:500;font-size:14px;padding:8px 8px 10px;border-bottom:3px solid var(--divider-color)}
+        th{text-align:start;color:var(--secondary-text-color);font-weight:500;font-size:14px;padding:8px 8px 10px;border-bottom:3px solid var(--divider-color)}
         td{padding:12px 8px;border-bottom:1px solid var(--divider-color);color:var(--primary-text-color);vertical-align:middle}
         tr:last-child td{border-bottom:none}
         td.ic{width:40px;font-size:22px;text-align:center}
         td.nm{font-weight:600;font-size:16px}
         td.tm{font-variant-numeric:tabular-nums}
         td.rel{color:var(--secondary-text-color)}
+        .cmp{font-weight:400;font-size:12px;color:var(--secondary-text-color);margin-top:2px;font-variant-numeric:tabular-nums}
         tr.next td{background:color-mix(in srgb,var(--primary-color) 14%,transparent)}
         tr.next td.rel{color:var(--primary-color);font-weight:600}
-        tr.next td:first-child{border-radius:10px 0 0 10px}
-        tr.next td:last-child{border-radius:0 10px 10px 0}
+        tr.next td:first-child{border-start-start-radius:10px;border-end-start-radius:10px}
+        tr.next td:last-child{border-start-end-radius:10px;border-end-end-radius:10px}
         .msg{color:var(--secondary-text-color);padding:8px 0}
       </style><ha-card><div id="c"></div></ha-card>`;
     }
     const { t, lang } = this._t();
+    this._root.querySelector("ha-card").setAttribute("dir", lang === "ar" ? "rtl" : "ltr");
     const el = this._root.getElementById("c");
     const cfg = this._config;
     if (!cfg.entity) { el.innerHTML = `<div class="msg">${t.missing}</div>`; return; }
@@ -183,23 +227,29 @@ class HabousPrayerCard extends HTMLElement {
     const details = [];
     if (cfg.show_details) {
       if (attrs.habous_city) {
-        const dist = attrs.distance_km != null ? ` (${attrs.distance_km} km)` : "";
+        const dist = attrs.distance_km != null ? ` (${ltr(`${attrs.distance_km} km`)})` : "";
         details.push(`${t.city} : ${attrs.habous_city}${dist}`);
       }
       if (attrs.source) details.push(`${t.source} : ${t.sources[attrs.source] || attrs.source}`);
       if (attrs.last_update) {
         const d = new Date(attrs.last_update);
-        if (!isNaN(d)) details.push(`${t.updated} : ${d.toLocaleDateString(lang)}`);
+        if (!isNaN(d)) details.push(`${t.updated} : ${ltr(d.toLocaleDateString(lang === "ar" ? "fr-FR" : lang))}`);
       }
     }
 
     const rows = ORDER.filter((p) => cfg.show_sunrise || p !== "sunrise").map((p) => {
       const st = sensors[p];
-      const d = st && st.state && !["unknown", "unavailable"].includes(st.state) ? new Date(st.state) : null;
+      let d = st && st.state && !["unknown", "unavailable"].includes(st.state) ? new Date(st.state) : null;
+      // La prochaine prière peut être celle de demain (après l'Isha) : le capteur
+      // « Prochaine prière » porte alors la bonne date, pas le capteur du jour.
+      if (p === nextPrayer && next && next.state && !["unknown", "unavailable"].includes(next.state)) {
+        const nd = new Date(next.state);
+        if (!isNaN(nd)) d = nd;
+      }
       const ok = d && !isNaN(d);
       return `<tr class="${p === nextPrayer ? "next" : ""}">
-        <td class="ic">${ICONS[p]}</td><td class="nm">${t.names[p]}</td>
-        <td class="tm">${ok ? this._fmtTime(d, lang) : "–"}</td>
+        <td class="ic">${ICONS[p]}</td><td class="nm">${t.names[p]}${ok ? this._comparison(st, d, t, lang) : ""}</td>
+        <td class="tm">${ok ? ltr(this._fmtTime(d, lang)) : "–"}</td>
         <td class="rel">${ok ? this._relative(d, t) : ""}</td></tr>`;
     }).join("");
 
@@ -230,7 +280,7 @@ class HabousPrayerCardEditor extends HTMLElement {
     const t = TEXT[lang] || TEXT.en;
     const labels = {
       entity: t.e_entity, title: t.e_title, show_sunrise: t.e_sunrise, show_details: t.e_details,
-      relative_style: t.e_relative,
+      relative_style: t.e_relative, show_comparison: t.e_comparison,
     };
     this._form.hass = this._hass;
     this._form.data = { show_sunrise: true, show_details: true, ...this._config };
@@ -239,6 +289,7 @@ class HabousPrayerCardEditor extends HTMLElement {
       { name: "title", selector: { text: {} } },
       { name: "show_sunrise", selector: { boolean: {} } },
       { name: "show_details", selector: { boolean: {} } },
+      { name: "show_comparison", selector: { boolean: {} } },
       {
         name: "relative_style",
         selector: { select: { mode: "dropdown", options: [
