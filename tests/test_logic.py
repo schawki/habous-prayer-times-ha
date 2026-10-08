@@ -243,8 +243,13 @@ class ArabicTests(unittest.TestCase):
         for f in ("notify_prayer.yaml", "announce_prayer_music_assistant.yaml"):
             self.assertIn("Fajr — الفجر", (COMP / "blueprints" / f).read_text("utf-8"))
 
+    def test_manifest_keys_sorted_like_hassfest(self):
+        keys = list(json.loads((COMP / "manifest.json").read_text("utf-8")))
+        self.assertEqual(keys[:2], ["domain", "name"])
+        self.assertEqual(keys[2:], sorted(keys[2:]))
+
     def test_version_bumped(self):
-        self.assertEqual(json.loads((COMP / "manifest.json").read_text("utf-8"))["version"], "0.6.0")
+        self.assertEqual(json.loads((COMP / "manifest.json").read_text("utf-8"))["version"], "0.6.1")
 
 
 class CardTests(unittest.TestCase):

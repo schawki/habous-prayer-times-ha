@@ -1,13 +1,20 @@
 {
-  "codeowners": ["@schawki"],
-  "config_flow": true,
-  "dependencies": ["frontend", "http"],
-  "documentation": "https://github.com/schawki/habous-prayer-times-ha",
   "domain": "habous_prayer_times",
+  "name": "Prayer times Morocco",
+  "codeowners": [
+    "@schawki"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "frontend",
+    "http"
+  ],
+  "documentation": "https://github.com/schawki/habous-prayer-times-ha",
   "integration_type": "service",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/schawki/habous-prayer-times-ha/issues",
-  "name": "Prayer times Morocco",
-  "requirements": ["prayer-times-calculator-offline>=1.0.2"],
-  "version": "0.6.0"
+  "requirements": [
+    "prayer-times-calculator-offline>=1.0.2"
+  ],
+  "version": "0.6.1"
 }
