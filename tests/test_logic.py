@@ -244,7 +244,7 @@ class ArabicTests(unittest.TestCase):
             self.assertIn("Fajr — الفجر", (COMP / "blueprints" / f).read_text("utf-8"))
 
     def test_version_bumped(self):
-        self.assertEqual(json.loads((COMP / "manifest.json").read_text("utf-8"))["version"], "0.5.3")
+        self.assertEqual(json.loads((COMP / "manifest.json").read_text("utf-8"))["version"], "0.6.0")
 
 
 class CardTests(unittest.TestCase):
@@ -287,6 +287,10 @@ class EnglishFirstTests(unittest.TestCase):
         ref = keys(json.loads((folder / "en.json").read_text("utf-8")))
         for path in folder.glob("*.json"):
             self.assertEqual(keys(json.loads(path.read_text("utf-8"))), ref, path.name)
+
+    def test_notify_blueprint_uses_sensor_utc_offset(self):
+        text = (COMP / "blueprints" / "notify_prayer.yaml").read_text("utf-8")
+        self.assertIn("state_attr(sensor, 'utc_offset')", text)
 
     def test_names_are_english(self):
         for path in (COMP / "manifest.json", ROOT / "hacs.json"):

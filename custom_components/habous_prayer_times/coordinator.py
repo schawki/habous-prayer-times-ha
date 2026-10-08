@@ -290,11 +290,29 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if not cached or day.isoformat() not in cached["days"]:
             return None
         raw = cached["days"][day.isoformat()]
-        offset = cached.get("utc_offset")
+        offset = self._offset_of(cached, day)
         return (
             {p: _at(day.isoformat(), raw[p], offset) for p in PRAYERS},
             {"source": SRC_LABEL_REPO, "updated": cached.get("updated")},
         )
+
+    @staticmethod
+    def _offset_of(cached: dict[str, Any], day: date) -> str | None:
+        """Legal-time offset of a day: the per-day value if the file has one, else the file's."""
+        return (cached.get("offsets") or {}).get(day.isoformat()) or cached.get("utc_offset")
+
+    def utc_offset_for(self, place_id: str, day: date) -> str | None:
+        """UTC offset ("+00:00") of the repository file for the place's city, if it covers the day.
+
+        Independent of the source: also available when times are calculated locally.
+        """
+        place = (self.data or {}).get("places", {}).get(place_id)
+        if not place or place.get("city_id") is None:
+            return None
+        cached = self._cache.get(str(place["city_id"]))
+        if not cached or day.isoformat() not in cached["days"]:
+            return None
+        return self._offset_of(cached, day)
 
     def times_for(
         self, place_id: str, day: date

@@ -84,7 +84,17 @@ variables:
   prayer: "{{ state_attr(sensor, 'prayer') }}"
   place: "{{ state_attr(sensor, 'place') }}"
   prayer_name: "{{ names.get(prayer, prayer) }}"
-  prayer_time: "{{ as_local(states(sensor) | as_datetime).strftime('%H:%M') }}"
+  utc_offset: "{{ state_attr(sensor, 'utc_offset') }}"
+  # Wall-clock time in the Habous legal time (offset read from the sensor), so the message does not
+  # depend on the Home Assistant timezone database. Falls back to the HA local time.
+  prayer_time: >-
+    {% set t = states(sensor) | as_datetime %}
+    {% if utc_offset is string and utc_offset | length == 6 and utc_offset[0] in ['+', '-'] -%}
+      {% set minutes = (utc_offset[1:3] | int(0) * 60 + utc_offset[4:6] | int(0)) * (-1 if utc_offset[0] == '-' else 1) -%}
+      {{ (t + timedelta(minutes=minutes)).strftime('%H:%M') }}
+    {%- else -%}
+      {{ as_local(t).strftime('%H:%M') }}
+    {%- endif %}
   minutes_before: >-
     {{ offset.replace('-', '').split(':')[1] | int(0) if offset.startswith('-') else 0 }}
   message: >-

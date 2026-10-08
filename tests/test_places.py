@@ -204,6 +204,26 @@ class CompareTests(unittest.TestCase):
         self.assertIsNotNone(coord.comparison_for("zone.home", day))
         self.assertTrue(coord.uses_repo)
 
+    def test_utc_offset_comes_from_the_file_whatever_the_source(self):
+        day = _NOW["value"].date()
+        for options in ({}, {"source": "local"}):
+            coord = self._coord(**options)
+            self.assertEqual(coord.utc_offset_for("zone.home", day), "+00:00")
+        self.assertIsNone(coord.utc_offset_for("zone.home", day.replace(day=day.day + 1)))
+        self.assertIsNone(coord.utc_offset_for("zone.unknown", day))
+
+    def test_per_day_offset_wins_over_the_file_offset(self):
+        coord = self._coord()
+        coord._cache["58"]["utc_offset"] = "+00:00"
+        coord._cache["58"]["offsets"] = {"2026-10-03": "+01:00"}
+        day = _NOW["value"].date()
+        times = coord.times_for("zone.home", day)[0]
+        self.assertEqual(times["fajr"].utcoffset(), timedelta(hours=1))
+        self.assertEqual(coord.utc_offset_for("zone.home", day), "+01:00")
+        # a day without its own entry falls back to the file-level offset
+        coord._cache["58"]["offsets"] = {}
+        self.assertEqual(coord.utc_offset_for("zone.home", day), "+00:00")
+
     def test_local_source_without_compare_reads_nothing(self):
         coord = self._coord(source="local", compare=False)
         self.assertIsNone(coord.comparison_for("zone.home", _NOW["value"].date()))

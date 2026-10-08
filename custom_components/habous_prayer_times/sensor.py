@@ -75,6 +75,8 @@ class _PlaceSensor(CoordinatorEntity[HabousCoordinator], SensorEntity):
             "source": meta.get("source"),
             "last_update": meta.get("updated"),
             "mode": place.get("mode"),
+            # Offset of the Habous file (legal time), so automations need no timezone database.
+            "utc_offset": self.coordinator.utc_offset_for(self._place_id, dt_util.now().date()),
             "calculated_at": (
                 place["calculated_at"].isoformat()
                 if meta.get("source") == SRC_LABEL_LOCAL and place.get("calculated_at")
