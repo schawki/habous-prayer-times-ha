@@ -64,7 +64,16 @@ def _install_stubs():
         async_track_state_change_event=lambda *a, **k: (lambda: None),
         async_track_time_change=lambda *a, **k: (lambda: None),
     )
-    _module("homeassistant.helpers.storage", Store=lambda *a, **k: None)
+    class _Store:
+        saved = []
+
+        def __init__(self, *a, **k):
+            pass
+
+        def async_delay_save(self, data_func, delay=0):
+            _Store.saved.append(data_func())
+
+    _module("homeassistant.helpers.storage", Store=_Store)
     _module(
         "homeassistant.helpers.update_coordinator",
         DataUpdateCoordinator=_Coordinator,
@@ -96,6 +105,7 @@ class _State:
     def __init__(self, state, **attributes):
         self.state = state
         self.attributes = attributes
+        self.last_updated = self.last_changed = datetime(2026, 10, 3, 11, 0, tzinfo=timezone.utc)
 
 
 class _States:
@@ -104,6 +114,9 @@ class _States:
 
     def get(self, entity_id):
         return self.items.get(entity_id)
+
+    def async_all(self, domain=None):
+        return [s for k, s in self.items.items() if domain is None or k.startswith(f"{domain}.")]
 
 
 class _Entry:
@@ -185,6 +198,81 @@ class ChoiceTests(unittest.TestCase):
         coord.data = {"places": coord.resolve_places()}
         found = coord.times_for("person.saad", _NOW["value"].date())
         self.assertEqual(found[1]["source"], const.SRC_LABEL_LOCAL)  # calcul, même sans « fallback »
+
+
+def person_without_gps(hass, name, state):
+    hass.states.items[f"person.{name}"] = _State(state, friendly_name=name.title())
+
+
+class PersonPositionTests(unittest.TestCase):
+    """A person's sensors never become unavailable because of their position."""
+
+    def setUp(self):
+        _NOW["value"] = datetime(2026, 10, 3, 12, 0, tzinfo=timezone.utc)
+
+    def test_home_without_coordinates_uses_the_home_zone(self):
+        hass, coord = make(persons=["person.adam"])
+        person_without_gps(hass, "adam", "home")
+        info = coord.resolve_places()["person.adam"]
+        self.assertEqual((info["position_source"], info["mode"]), ("zone", "zone"))
+        self.assertEqual(info["city_id"], 58)
+
+    def test_any_home_assistant_zone_works_even_if_not_added_to_the_integration(self):
+        hass, coord = make(persons=["person.adam"])
+        hass.states.items["zone.school"] = _State("0", friendly_name="School", latitude=34.02, longitude=-6.84)
+        person_without_gps(hass, "adam", "School")
+        info = coord.resolve_places()["person.adam"]
+        self.assertEqual(info["position_source"], "zone")
+        self.assertEqual(info["city_id"], 3)  # Rabat is the closest Habous city to the school
+
+    def test_gps_is_remembered_and_used_when_the_position_disappears(self):
+        hass, coord = make(persons=["person.adam"])
+        person(hass, "adam", "not_home", 34.00, -6.85)
+        self.assertEqual(coord.resolve_places()["person.adam"]["position_source"], "gps")
+        person_without_gps(hass, "adam", "not_home")  # tracker lost
+        info = coord.resolve_places()["person.adam"]
+        self.assertEqual(info["position_source"], "last_known")
+        self.assertEqual(info["city_id"], 3)
+        self.assertIsNotNone(info["position_updated"])
+
+    def test_last_known_survives_a_restart(self):
+        hass, coord = make(persons=["person.adam"])
+        person(hass, "adam", "not_home", 34.00, -6.85)
+        coord.resolve_places()
+        saved = coordinator_mod.HabousCoordinator._data_to_save(coord)["positions"]
+        self.assertIn("person.adam", saved)
+        hass2, coord2 = make(persons=["person.adam"])
+        coord2._positions = saved  # what async_load_cache reads back
+        person_without_gps(hass2, "adam", "unavailable")
+        self.assertEqual(coord2.resolve_places()["person.adam"]["position_source"], "last_known")
+
+    def test_nothing_known_falls_back_to_the_home_location(self):
+        hass, coord = make(persons=["person.adam"])
+        person_without_gps(hass, "adam", "unknown")
+        info = coord.resolve_places()["person.adam"]
+        self.assertEqual(info["position_source"], "home_default")
+        self.assertEqual(info["mode"], "zone")
+        self.assertEqual((info["calc_lat"], info["calc_lon"]), (33.5731, -7.5898))
+
+    def test_entity_missing_altogether_still_gets_times(self):
+        hass, coord = make(persons=["person.ghost"])
+        coord.data = {"places": coord.resolve_places()}
+        self.assertEqual(coord.data["places"]["person.ghost"]["position_source"], "home_default")
+        self.assertIsNotNone(coord.times_for("person.ghost", _NOW["value"].date()))
+
+    def test_small_moves_are_not_saved_again(self):
+        store = sys.modules["homeassistant.helpers.storage"].Store
+        hass, coord = make(persons=["person.adam"])
+        person(hass, "adam", "not_home", 34.0000, -6.8500)
+        coord.resolve_places()
+        before = len(store.saved)
+        self.assertGreaterEqual(before, 1)
+        person(hass, "adam", "not_home", 34.0001, -6.8501)  # ~15 m
+        coord.resolve_places()
+        self.assertEqual(len(store.saved), before)
+        person(hass, "adam", "not_home", 34.0100, -6.8500)  # ~1 km
+        coord.resolve_places()
+        self.assertEqual(len(store.saved), before + 1)
 
 
 class HijriTests(unittest.TestCase):

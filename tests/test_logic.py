@@ -249,7 +249,7 @@ class ArabicTests(unittest.TestCase):
         self.assertEqual(keys[2:], sorted(keys[2:]))
 
     def test_version_bumped(self):
-        self.assertEqual(json.loads((COMP / "manifest.json").read_text("utf-8"))["version"], "0.7.0")
+        self.assertEqual(json.loads((COMP / "manifest.json").read_text("utf-8"))["version"], "0.7.1")
 
 
 class HijriFeatureTests(unittest.TestCase):

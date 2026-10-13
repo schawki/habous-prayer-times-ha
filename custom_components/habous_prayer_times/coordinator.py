@@ -134,6 +134,9 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Last calculation of each place: {lat, lon, day, at, free}. Kept in memory.
         self._anchors: dict[str, dict[str, Any]] = {}
         self._forced: set[str] = set()
+        # Last known position of each tracked person: {entity_id: {"lat", "lon", "at"}}, persisted.
+        self._positions: dict[str, dict[str, Any]] = {}
+        self._fallback_logged: set[str] = set()
         self.api = HabousApi(
             async_get_clientsession(hass),
             data_url(entry),
@@ -155,6 +158,60 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             state.attributes.get("friendly_name", entity_id),
             state.state,
         )
+
+    def _zone_coords(self, zone_name: str) -> tuple[float, float] | None:
+        """Coordinates of the Home Assistant zone with this state/name ("home" included)."""
+        if zone_name == "home":
+            return self.hass.config.latitude, self.hass.config.longitude
+        wanted = zone_name.casefold()
+        for state in self.hass.states.async_all("zone"):
+            if str(state.attributes.get("friendly_name", "")).casefold() == wanted and (
+                state.attributes.get("latitude") is not None
+            ):
+                return float(state.attributes["latitude"]), float(state.attributes["longitude"])
+        return None
+
+    def _remember(self, entity_id: str, lat: float, lon: float, now: datetime) -> None:
+        """Remember a person's position when it is new or moved by more than ~50 m."""
+        old = self._positions.get(entity_id)
+        if old and abs(old["lat"] - lat) < 0.0005 and abs(old["lon"] - lon) < 0.0005:
+            return
+        self._positions[entity_id] = {"lat": lat, "lon": lon, "at": now.isoformat()}
+        self._store.async_delay_save(self._data_to_save, 30)
+
+    def _person_position(
+        self, entity_id: str
+    ) -> tuple[float, float, str, str | None, str, datetime | None]:
+        """(lat, lon, name, state, position_source, position_time) of a person. Never None.
+
+        1. "gps": the position the person's entity reports now.
+        2. "zone": no coordinates but the state is a Home Assistant zone ("home", "School"...).
+        3. "last_known": the last position remembered by the integration.
+        4. "home_default": nothing known yet, so the home location of Home Assistant.
+        So a person's sensors never become unavailable because of their location."""
+        now = dt_util.now()
+        state = self.hass.states.get(entity_id)
+        name = state.attributes.get("friendly_name", entity_id) if state else entity_id
+        if state and state.attributes.get("latitude") is not None:
+            lat, lon = float(state.attributes["latitude"]), float(state.attributes["longitude"])
+            self._remember(entity_id, lat, lon, now)
+            self._fallback_logged.discard(entity_id)
+            return lat, lon, name, state.state, "gps", state.last_updated
+        if state and state.state not in ("not_home", "unknown", "unavailable"):
+            if coords := self._zone_coords(state.state):
+                self._remember(entity_id, coords[0], coords[1], now)
+                self._fallback_logged.discard(entity_id)
+                return coords[0], coords[1], name, state.state, "zone", state.last_changed
+        if old := self._positions.get(entity_id):
+            source, when = "last_known", dt_util.parse_datetime(old["at"])
+            lat, lon = old["lat"], old["lon"]
+        else:
+            source, when = "home_default", None
+            lat, lon = self.hass.config.latitude, self.hass.config.longitude
+        if entity_id not in self._fallback_logged:
+            self._fallback_logged.add(entity_id)
+            _LOGGER.info("%s reports no position: using %s", entity_id, source)
+        return lat, lon, name, None, source, when
 
     @property
     def uses_repo(self) -> bool:
@@ -241,11 +298,11 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         for entity_id in dict.fromkeys(conf(self.entry, CONF_PERSONS, [])):
             if entity_id in places:
                 continue
-            coords = self._place_coords(entity_id)
-            if coords is None:
-                continue
-            lat, lon, name, state = coords
-            zone_id = self._zone_of(state, zones)
+            lat, lon, name, state, pos_source, pos_time = self._person_position(entity_id)
+            if pos_source == "home_default":
+                zone_id = HOME_ZONE if HOME_ZONE in zones else None
+            else:
+                zone_id = self._zone_of(state, zones)
             if zone_id:
                 z = zones[zone_id]
                 info = {**z, "name": name, "kind": "person", "lat": lat, "lon": lon, "mode": MODE_ZONE}
@@ -257,6 +314,8 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 info = self._new_info(name, "person", lat, lon, city, dist, force_calc, mode)
                 self._anchor(info, entity_id, lat, lon, True, tol_km, now)
             info["label"] = self._label("person", name, state, info)
+            info["position_source"] = pos_source
+            info["position_updated"] = pos_time
             places[entity_id] = info
 
         self._forced.clear()
@@ -384,16 +443,19 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def async_load_cache(self) -> None:
         stored = await self._store.async_load() or {}
         self._cache = stored.get("cities", {})
+        self._positions = stored.get("positions", {})
         if (raw := stored.get("last_check")) is not None:
             self._last_check = dt_util.parse_datetime(raw)
 
+    def _data_to_save(self) -> dict[str, Any]:
+        return {
+            "cities": self._cache,
+            "last_check": self._last_check.isoformat() if self._last_check else None,
+            "positions": self._positions,
+        }
+
     async def _async_save(self) -> None:
-        await self._store.async_save(
-            {
-                "cities": self._cache,
-                "last_check": self._last_check.isoformat() if self._last_check else None,
-            }
-        )
+        await self._store.async_save(self._data_to_save())
 
     # ------------------------------------------------------ personnes suivies
     @callback

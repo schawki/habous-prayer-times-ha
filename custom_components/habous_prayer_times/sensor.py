@@ -76,6 +76,11 @@ class _PlaceSensor(CoordinatorEntity[HabousCoordinator], SensorEntity):
             "source": meta.get("source"),
             "last_update": meta.get("updated"),
             "mode": place.get("mode"),
+            # People only: where the position comes from (gps, zone, last_known, home_default).
+            "position_source": place.get("position_source"),
+            "position_updated": (
+                place["position_updated"].isoformat() if place.get("position_updated") else None
+            ),
             # Offset of the Habous file (legal time), so automations need no timezone database.
             "utc_offset": self.coordinator.utc_offset_for(self._place_id, dt_util.now().date()),
             # Hijri date (Moroccan calendar when the repository has it, else calculated).

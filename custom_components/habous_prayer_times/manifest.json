@@ -17,5 +17,5 @@
     "hijridate>=2.3.0",
     "prayer-times-calculator-offline>=1.0.2"
   ],
-  "version": "0.7.0"
+  "version": "0.7.1"
 }
