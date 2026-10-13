@@ -8,7 +8,7 @@ may differ by a few minutes from the Ministry's official tables.
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from functools import lru_cache
 
 from .const import CALCULATION_METHOD, PRAYERS
@@ -59,3 +59,16 @@ def compute_day(
         day.isoformat(),
         tuple(int(tune.get(p, 0)) for p in PRAYERS),
     )
+
+
+def hijri_from_gregorian(day: date, adjust: int = 0) -> dict[str, int] | None:
+    """Calculated Hijri date (Umm al-Qura) of a day, shifted by `adjust` days.
+
+    None if the `hijridate` library is missing or the date is outside its range."""
+    try:
+        from hijridate import Gregorian  # lazy: only needed for calculated dates
+
+        hijri = Gregorian.fromdate(day + timedelta(days=adjust)).to_hijri()
+    except (ImportError, ValueError, OverflowError):
+        return None
+    return {"y": hijri.year, "m": hijri.month, "d": hijri.day}

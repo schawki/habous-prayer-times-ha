@@ -14,6 +14,8 @@ CONF_PERSONS = "persons"
 CONF_FREQUENCY = "update_frequency"
 CONF_MAX_CITY_DISTANCE = "max_city_distance_km"
 CONF_RECALC_TOLERANCE = "recalc_tolerance_km"
+CONF_HIJRI_SOURCE = "hijri_source"
+CONF_HIJRI_ADJUST = "hijri_adjust"
 CONF_TUNE_PREFIX = "tune_"  # tune_fajr, tune_sunrise, ... (minutes, calcul local)
 
 # Place outside a known zone: Habous city only if it is within ... km, otherwise calculation.
@@ -33,6 +35,20 @@ SOURCE_REPO = "repository"
 SOURCE_LOCAL = "local"
 SOURCES = [SOURCE_REPO, SOURCE_LOCAL]
 DEFAULT_SOURCE = SOURCE_REPO
+
+# Hijri date: the official Moroccan one published by Habous (data repository), or a calculation
+# (Umm al-Qura), which can differ by a day from the Moroccan calendar.
+HIJRI_REPO = "repository"
+HIJRI_CALC = "calculated"
+HIJRI_SOURCES = [HIJRI_REPO, HIJRI_CALC]
+DEFAULT_HIJRI_SOURCE = HIJRI_REPO
+DEFAULT_HIJRI_ADJUST = 0
+# Transliterated month names (1 = Muharram ... 12 = Dhu al-Hijjah), used for the sensor attributes.
+HIJRI_MONTHS = [
+    "Muharram", "Safar", "Rabi' al-Awwal", "Rabi' al-Thani", "Jumada al-Awwal",
+    "Jumada al-Thani", "Rajab", "Sha'ban", "Ramadan", "Shawwal", "Dhu al-Qa'dah",
+    "Dhu al-Hijjah",
+]
 
 FREQ_MONTHLY = "monthly"
 FREQ_WEEKLY = "weekly"

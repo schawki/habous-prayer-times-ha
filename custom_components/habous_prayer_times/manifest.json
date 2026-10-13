@@ -14,7 +14,8 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/schawki/habous-prayer-times-ha/issues",
   "requirements": [
+    "hijridate>=2.3.0",
     "prayer-times-calculator-offline>=1.0.2"
   ],
-  "version": "0.6.1"
+  "version": "0.7.0"
 }

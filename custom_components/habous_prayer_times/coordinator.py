@@ -23,6 +23,8 @@ from .const import (
     CONF_DATA_URL,
     CONF_FALLBACK_LOCAL,
     CONF_FREQUENCY,
+    CONF_HIJRI_ADJUST,
+    CONF_HIJRI_SOURCE,
     CONF_HOME_CITY,
     CONF_MAX_CITY_DISTANCE,
     CONF_PERSONS,
@@ -32,6 +34,8 @@ from .const import (
     CONF_ZONES,
     DEFAULT_DATA_URL,
     DEFAULT_FREQUENCY,
+    DEFAULT_HIJRI_ADJUST,
+    DEFAULT_HIJRI_SOURCE,
     DEFAULT_MAX_CITY_DISTANCE_KM,
     DEFAULT_RECALC_TOLERANCE_KM,
     MODE_CALCULATED,
@@ -44,6 +48,9 @@ from .const import (
     FREQ_MANUAL,
     FREQ_MONTHLY,
     FREQ_WEEKLY,
+    HIJRI_CALC,
+    HIJRI_MONTHS,
+    HIJRI_REPO,
     HOME_ZONE,
     LEGACY_DATA_URLS,
     PRAYERS,
@@ -112,6 +119,9 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.fallback_local: bool = conf(entry, CONF_FALLBACK_LOCAL, True)
         # Compare with the Habous times (calculated vs published), whichever the source.
         self.compare: bool = bool(conf(entry, CONF_COMPARE, True))
+        self.hijri_source: str = conf(entry, CONF_HIJRI_SOURCE, DEFAULT_HIJRI_SOURCE)
+        self.hijri_adjust: int = int(conf(entry, CONF_HIJRI_ADJUST, DEFAULT_HIJRI_ADJUST))
+        self._hijri_tried: dict[str, date] = {}  # city_id(str) -> day we looked for its Hijri date
         self.tune = {
             p: int(conf(entry, f"{CONF_TUNE_PREFIX}{p}", DEFAULT_TUNE.get(p, 0))) for p in PRAYERS
         }
@@ -314,6 +324,26 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return None
         return self._offset_of(cached, day)
 
+    def hijri_for(self, day: date) -> dict[str, Any] | None:
+        """Hijri date of a day: {"y", "m", "d", "month_name", "source"}.
+
+        The Hijri date is the same everywhere in Morocco, so any cached city file will do.
+        "repository" source: the official Moroccan date published by Habous; falls back to the
+        calculation when the repository does not have it. "calculated" source: Umm al-Qura,
+        shifted by the adjustment (also applied to the fallback)."""
+        found, source = None, None
+        if self.hijri_source == HIJRI_REPO:
+            iso = day.isoformat()
+            for cached in self._cache.values():
+                if entry := (cached.get("hijri") or {}).get(iso):
+                    found, source = {k: int(entry[k]) for k in ("y", "m", "d")}, HIJRI_REPO
+                    break
+        if found is None:
+            found, source = calc.hijri_from_gregorian(day, self.hijri_adjust), HIJRI_CALC
+        if found is None or not 1 <= found["m"] <= 12:
+            return None
+        return {**found, "month_name": HIJRI_MONTHS[found["m"] - 1], "source": source}
+
     def times_for(
         self, place_id: str, day: date
     ) -> tuple[dict[str, datetime], dict[str, Any]] | None:
@@ -443,8 +473,16 @@ class HabousCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # Even in manual mode: fetch if the current day is missing
             # (new place, outdated file).
             missing_today = not cached or today.isoformat() not in cached["days"]
-            if not (due or missing_today):
+            # An older cached file may lack the Hijri date: look again, at most once a day.
+            missing_hijri = (
+                self.hijri_source == HIJRI_REPO
+                and bool(cached)
+                and today.isoformat() not in (cached.get("hijri") or {})
+                and self._hijri_tried.get(key) != today
+            )
+            if not (due or missing_today or missing_hijri):
                 continue
+            self._hijri_tried[key] = today
             try:
                 self._cache[key] = await self.api.async_get_times(city_id)
                 self.errors.pop(key, None)

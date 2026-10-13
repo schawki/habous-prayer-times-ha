@@ -26,6 +26,8 @@ from .const import (
     CONF_DATA_URL,
     CONF_FALLBACK_LOCAL,
     CONF_FREQUENCY,
+    CONF_HIJRI_ADJUST,
+    CONF_HIJRI_SOURCE,
     CONF_HOME_CITY,
     CONF_MAX_CITY_DISTANCE,
     CONF_PERSONS,
@@ -35,12 +37,15 @@ from .const import (
     CONF_ZONES,
     DEFAULT_DATA_URL,
     DEFAULT_FREQUENCY,
+    DEFAULT_HIJRI_ADJUST,
+    DEFAULT_HIJRI_SOURCE,
     DEFAULT_MAX_CITY_DISTANCE_KM,
     DEFAULT_RECALC_TOLERANCE_KM,
     DEFAULT_TUNE,
     DEFAULT_SOURCE,
     DOMAIN,
     FREQUENCIES,
+    HIJRI_SOURCES,
     PRAYERS,
     SOURCE_LOCAL,
     SOURCE_REPO,
@@ -192,6 +197,20 @@ class HabousOptionsFlow(OptionsFlow):
                     translation_key=CONF_FREQUENCY,
                     mode=SelectSelectorMode.DROPDOWN,
                 )
+            )
+        )
+        schema[
+            vol.Required(CONF_HIJRI_SOURCE, default=conf(entry, CONF_HIJRI_SOURCE, DEFAULT_HIJRI_SOURCE))
+        ] = SelectSelector(
+            SelectSelectorConfig(
+                options=HIJRI_SOURCES, translation_key=CONF_HIJRI_SOURCE, mode=SelectSelectorMode.LIST
+            )
+        )
+        schema[
+            vol.Required(CONF_HIJRI_ADJUST, default=int(conf(entry, CONF_HIJRI_ADJUST, DEFAULT_HIJRI_ADJUST)))
+        ] = NumberSelector(
+            NumberSelectorConfig(
+                min=-2, max=2, step=1, unit_of_measurement="d", mode=NumberSelectorMode.BOX
             )
         )
         for prayer in PRAYERS:

@@ -9,7 +9,8 @@ import importlib
 import sys
 import types
 import unittest
-from datetime import datetime, timedelta, timezone
+from unittest import mock
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -184,6 +185,47 @@ class ChoiceTests(unittest.TestCase):
         coord.data = {"places": coord.resolve_places()}
         found = coord.times_for("person.saad", _NOW["value"].date())
         self.assertEqual(found[1]["source"], const.SRC_LABEL_LOCAL)  # calcul, même sans « fallback »
+
+
+class HijriTests(unittest.TestCase):
+    DAY = date(2026, 10, 13)
+
+    def setUp(self):
+        _NOW["value"] = datetime(2026, 10, 13, 12, 0, tzinfo=timezone.utc)
+
+    def _coord(self, hijri=True, **options):
+        hass, coord = make(options=options)
+        days = {"2026-10-13": {p: "06:00" for p in const.PRAYERS}}
+        coord._cache = {"58": {"days": days, "utc_offset": "+00:00", "updated": "x"}}
+        if hijri:
+            coord._cache["58"]["hijri"] = {"2026-10-13": {"y": 1448, "m": 5, "d": 1}}
+        coord.data = {"places": coord.resolve_places()}
+        return coord
+
+    def test_repository_date_is_the_moroccan_one(self):
+        out = self._coord().hijri_for(self.DAY)
+        self.assertEqual((out["y"], out["m"], out["d"]), (1448, 5, 1))
+        self.assertEqual(out["month_name"], "Jumada al-Awwal")
+        self.assertEqual(out["source"], "repository")
+
+    def test_repository_source_falls_back_to_calculation(self):
+        out = self._coord(hijri=False).hijri_for(self.DAY)
+        self.assertEqual(out["source"], "calculated")
+        self.assertEqual((out["y"], out["m"], out["d"]), (1448, 5, 2))  # Umm al-Qura
+
+    def test_calculated_source_ignores_the_repository_and_uses_the_adjustment(self):
+        out = self._coord(hijri_source="calculated", hijri_adjust=-1).hijri_for(self.DAY)
+        self.assertEqual(out["source"], "calculated")
+        self.assertEqual((out["y"], out["m"], out["d"]), (1448, 5, 1))
+
+    def test_adjustment_also_applies_to_the_fallback(self):
+        out = self._coord(hijri=False, hijri_adjust=-1).hijri_for(self.DAY)
+        self.assertEqual(out["d"], 1)
+
+    def test_missing_library_gives_no_date_instead_of_an_error(self):
+        coord = self._coord(hijri=False)
+        with mock.patch.dict(sys.modules, {"hijridate": None}):
+            self.assertIsNone(coord.hijri_for(self.DAY))
 
 
 class CompareTests(unittest.TestCase):

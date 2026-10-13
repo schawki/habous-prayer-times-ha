@@ -26,7 +26,16 @@ L'interface existe en anglais, français et arabe (selon la langue de Home Assis
 - **Zones supplémentaires** et **personnes** : les horaires suivent leur position et se mettent à jour quand elles se déplacent (date de dernière mise à jour en attribut).
 - **Horaires d'une personne :** dans une zone connue (logement ou zone supplémentaire), elle reçoit les horaires de la zone ; hors zone, ceux de la ville Habous la plus proche **si elle est à moins de _N_ km** (option, 30 km par défaut) ; sinon les horaires **calculés** à sa position. Un calcul n'est refait que si la personne s'est éloignée de plus de _M_ km du point du dernier calcul (option, 5 km par défaut) ou si le jour a changé. La carte indique l'heure du calcul et propose une icône « Actualiser » ; à l'ouverture de la page elle appelle le service `habous_prayer_times.recalculate`, qui ne recalcule que si nécessaire (`force: true` pour forcer, par exemple dans une automatisation). Le recalcul utilise la dernière position connue par Home Assistant.
 - Fréquence de mise à jour du dépôt : mensuelle (défaut), hebdomadaire, quotidienne ou manuelle, plus un bouton « Mettre à jour ».
-- Capteurs par lieu : Fajr, Chourouk, Dhuhr, Asr, Maghrib, Isha, Prochaine prière. Attributs : `place`, `source`, `last_update`, `mode` (`zone`, `repository` ou `calculated`), `utc_offset` (décalage de l'heure légale du jour dans les données des Habous, par exemple `+00:00` ; utilisé par le blueprint de notification pour écrire l'heure sans dépendre de la base de fuseaux de Home Assistant), `calculated_at` (heure du calcul, quand les horaires sont calculés) et — quand le dépôt couvre le jour — `repository_time` (heure Habous), `calculated_time` (heure calculée) et `difference_min` (calculée − Habous). Les heures du dépôt sont lues avec le `utc_offset` du fichier : elles ne dépendent pas de la base de fuseaux de Home Assistant.
+- Capteurs par lieu : Fajr, Chourouk, Dhuhr, Asr, Maghrib, Isha, Prochaine prière. Attributs : `place`, `source`, `last_update`, `mode` (`zone`, `repository` ou `calculated`), `utc_offset` (décalage de l'heure légale du jour dans les données des Habous, par exemple `+00:00` ; utilisé par le blueprint de notification pour écrire l'heure sans dépendre de la base de fuseaux de Home Assistant), `hijri_date` (par exemple `1 Jumada al-Awwal 1448`) avec `hijri_year`, `hijri_month`, `hijri_day`, `hijri_month_name` et `hijri_source` (voir *Date hijri* ci-dessous), `calculated_at` (heure du calcul, quand les horaires sont calculés) et — quand le dépôt couvre le jour — `repository_time` (heure Habous), `calculated_time` (heure calculée) et `difference_min` (calculée − Habous). Les heures du dépôt sont lues avec le `utc_offset` du fichier : elles ne dépendent pas de la base de fuseaux de Home Assistant.
+
+## Date hijri
+
+La date hijri s'affiche en haut de la carte et est exposée en attributs des capteurs. L'option **« Source de la date hijri »** permet de choisir :
+
+- **Dépôt de données (calendrier marocain officiel)**, par défaut : la date publiée par les Habous, qui suit les décisions marocaines d'observation du croissant. Quand le dépôt ne l'a pas (fichiers anciens), le calcul est utilisé à la place.
+- **Calcul (Umm al-Qura)** : calculée localement avec la bibliothèque `hijridate` ; elle peut différer d'un jour du calendrier marocain. L'option **« Ajustement de la date hijri »** (−2 à +2 jours) décale la date calculée, y compris le repli du premier choix.
+
+`hijri_source` indique laquelle est affichée (`repository` ou `calculated`). La date change à minuit.
 
 ## Blueprints (installés automatiquement)
 
@@ -47,6 +56,8 @@ show_sunrise: true            # facultatif
 show_details: true            # facultatif
 relative_style: compact       # compact (+14h25 / −0h14, défaut ; +14:25 en anglais) ou long
 show_comparison: false        # true : « Habous 05:01 · calcul 05:02 (+1) » sous chaque prière
+show_hijri: true              # date hijri au-dessus du tableau (par défaut true)
+hijri_language: card          # card (langue de la carte, noms de mois translittérés), ar (arabe) ou both
 ```
 
 ## Installation via HACS

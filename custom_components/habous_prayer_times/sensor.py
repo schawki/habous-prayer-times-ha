@@ -67,6 +67,7 @@ class _PlaceSensor(CoordinatorEntity[HabousCoordinator], SensorEntity):
         place = self._place or {}
         found = self._times(dt_util.now().date())
         meta = found[1] if found else {}
+        hijri = self.coordinator.hijri_for(dt_util.now().date()) or {}
         return {
             "place": place.get("label"),
             "entity": self._place_id,
@@ -77,6 +78,15 @@ class _PlaceSensor(CoordinatorEntity[HabousCoordinator], SensorEntity):
             "mode": place.get("mode"),
             # Offset of the Habous file (legal time), so automations need no timezone database.
             "utc_offset": self.coordinator.utc_offset_for(self._place_id, dt_util.now().date()),
+            # Hijri date (Moroccan calendar when the repository has it, else calculated).
+            "hijri_date": (
+                f"{hijri['d']} {hijri['month_name']} {hijri['y']}" if hijri else None
+            ),
+            "hijri_year": hijri.get("y"),
+            "hijri_month": hijri.get("m"),
+            "hijri_day": hijri.get("d"),
+            "hijri_month_name": hijri.get("month_name"),
+            "hijri_source": hijri.get("source"),
             "calculated_at": (
                 place["calculated_at"].isoformat()
                 if meta.get("source") == SRC_LABEL_LOCAL and place.get("calculated_at")

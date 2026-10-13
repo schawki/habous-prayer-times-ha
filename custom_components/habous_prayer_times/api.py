@@ -46,9 +46,10 @@ class HabousApi:
         return cities
 
     async def async_get_times(self, city_id: int) -> dict[str, Any]:
-        """Times of one city: {"days", "updated", "utc_offset", "offsets"} (offsets are optional).
+        """Times of one city: {"days", "updated", "utc_offset", "offsets", "hijri"} (the last three are optional).
 
-        `offsets` maps each day to the legal-time offset (it wins over the file-level `utc_offset`)."""
+        `offsets` maps each day to the legal-time offset (it wins over the file-level `utc_offset`).
+        `hijri` maps each day to the official Moroccan Hijri date {"y", "m", "d"}."""
         try:
             payload = json.loads(await self._get_text(f"{self._base}/times/{city_id}.json"))
             return {
@@ -56,6 +57,7 @@ class HabousApi:
                 "updated": payload.get("updated"),
                 "utc_offset": payload.get("utc_offset"),
                 "offsets": payload.get("offsets") or {},
+                "hijri": payload.get("hijri") or {},
             }
         except (ValueError, KeyError) as err:
             raise HabousError(f"fichier invalide pour la ville {city_id}: {err}") from err

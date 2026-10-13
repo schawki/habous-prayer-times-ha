@@ -10,6 +10,8 @@
  *   show_details: true                                     # city, distance, source, last update
  *   relative_style: compact                                # compact (+14h25 / −0h14, or +14:25 in English) or long
  *   show_comparison: false                                 # Habous time and calculated time side by side
+ *   show_hijri: true                                       # Hijri date line above the table
+ *   hijri_language: card                                   # card (language of the card), ar (Arabic) or both
  */
 
 const DOMAIN = "habous_prayer_times";
@@ -34,6 +36,9 @@ const TEXT = {
     e_details: "Afficher ville, distance et source",
     e_relative: "Temps relatif", e_compact: "Condensé (+14h25 / −0h14)", e_long: "Détaillé (il y a 14 heures…)",
     cmp_repo: "Habous", cmp_calc: "calcul", e_comparison: "Comparer l'heure Habous et l'heure calculée",
+    e_hijri: "Afficher la date hijri", e_hijri_lang: "Langue de la date hijri",
+    e_hijri_card: "Langue de la carte", e_hijri_ar: "Arabe", e_hijri_both: "Langue de la carte et arabe",
+    hijri_months: ["Muharram", "Safar", "Rabi' al-Awwal", "Rabi' al-Thani", "Jumada al-Awwal", "Jumada al-Thani", "Rajab", "Sha'ban", "Ramadan", "Shawwal", "Dhu al-Qa'dah", "Dhu al-Hijjah"],
   },
   en: {
     title: "Prayer times",
@@ -50,6 +55,9 @@ const TEXT = {
     e_details: "Show city, distance and source",
     e_relative: "Relative time", e_compact: "Compact (+14:25 / −0:14)", e_long: "Long (14 hours ago…)",
     cmp_repo: "Habous", cmp_calc: "calculated", e_comparison: "Compare Habous time and calculated time",
+    e_hijri: "Show the Hijri date", e_hijri_lang: "Hijri date language",
+    e_hijri_card: "Card language", e_hijri_ar: "Arabic", e_hijri_both: "Card language and Arabic",
+    hijri_months: ["Muharram", "Safar", "Rabi' al-Awwal", "Rabi' al-Thani", "Jumada al-Awwal", "Jumada al-Thani", "Rajab", "Sha'ban", "Ramadan", "Shawwal", "Dhu al-Qa'dah", "Dhu al-Hijjah"],
   },
 };
 
@@ -68,10 +76,24 @@ TEXT.ar = {
   e_details: "إظهار المدينة والمسافة والمصدر",
   e_relative: "الوقت النسبي", e_compact: "مختصر (+14h25 / −0h14)", e_long: "مفصّل (منذ 14 ساعة…)",
   cmp_repo: "الأوقاف", cmp_calc: "حساب", e_comparison: "مقارنة وقت الأوقاف بالوقت المحسوب",
+  e_hijri: "إظهار التاريخ الهجري", e_hijri_lang: "لغة التاريخ الهجري",
+  e_hijri_card: "لغة البطاقة", e_hijri_ar: "العربية", e_hijri_both: "لغة البطاقة والعربية",
+  hijri_months: ["محرم", "صفر", "ربيع الأول", "ربيع الآخر", "جمادى الأولى", "جمادى الآخرة", "رجب", "شعبان", "رمضان", "شوال", "ذو القعدة", "ذو الحجة"],
 };
 
 /** Locale d'affichage : chiffres latins pour l'arabe (usage au Maroc). */
 const localeOf = (lang) => (lang === "ar" ? "ar-MA-u-nu-latn" : lang);
+/** Hijri date text: "1 Jumada al-Awwal 1448" (Latin, transliterated) or "1 جمادى الأولى 1448 هـ". */
+function hijriText(a, lang, mode) {
+  const d = a.hijri_day, m = a.hijri_month, y = a.hijri_year;
+  if (!d || !m || !y) return "";
+  const own = (TEXT[lang] || TEXT.en).hijri_months || TEXT.en.hijri_months;
+  const latin = `${d} ${own[m - 1]} ${y}`;
+  const arabic = `<bdi dir="rtl">${d} ${TEXT.ar.hijri_months[m - 1]} ${y} هـ</bdi>`;
+  if (lang === "ar" || mode === "ar") return arabic;
+  return mode === "both" ? `${latin} · ${arabic}` : latin;
+}
+
 /** Isolate a number/time so it is not reversed inside right-to-left text. */
 const ltr = (txt) => `<bdi dir="ltr">${txt}</bdi>`;
 /** Mot au singulier/pluriel (et duel pour l'arabe quand le texte le fournit). */
@@ -124,7 +146,7 @@ class HabousPrayerCard extends HTMLElement {
   }
 
   setConfig(config) {
-    this._config = { show_sunrise: true, show_details: true, ...config };
+    this._config = { show_sunrise: true, show_details: true, show_hijri: true, ...config };
     this._render();
   }
 
@@ -212,6 +234,7 @@ class HabousPrayerCard extends HTMLElement {
       this._root.innerHTML = `<style>
         ha-card{padding:16px}
         h2{margin:0 0 4px;font-size:var(--ha-card-header-font-size,24px);font-weight:400;color:var(--primary-text-color)}
+        .hj{color:var(--secondary-text-color);font-size:15px;margin:0 0 6px}
         .sub{color:var(--secondary-text-color);font-size:13px;margin-bottom:12px;line-height:1.4}
         table{width:100%;border-collapse:collapse}
         th{text-align:start;color:var(--secondary-text-color);font-weight:500;font-size:14px;padding:8px 8px 10px;border-bottom:3px solid var(--divider-color)}
@@ -281,7 +304,9 @@ class HabousPrayerCard extends HTMLElement {
         <td class="rel">${ok ? this._relative(d, t) : ""}</td></tr>`;
     }).join("");
 
+    const hijri = cfg.show_hijri === false ? "" : hijriText(attrs, lang, cfg.hijri_language || "card");
     el.innerHTML = `<h2>${title}</h2>
+      ${hijri ? `<div class="hj">${hijri}</div>` : ""}
       ${details.length ? `<div class="sub">${details.join(" · ")}${refresh}</div>` : ""}
       <table><thead><tr><th></th><th>${t.prayer}</th><th>${t.time}</th><th>${t.relative}</th></tr></thead>
       <tbody>${rows}</tbody></table>`;
@@ -316,15 +341,24 @@ class HabousPrayerCardEditor extends HTMLElement {
     const labels = {
       entity: t.e_entity, title: t.e_title, show_sunrise: t.e_sunrise, show_details: t.e_details,
       relative_style: t.e_relative, show_comparison: t.e_comparison,
+      show_hijri: t.e_hijri, hijri_language: t.e_hijri_lang,
     };
     this._form.hass = this._hass;
-    this._form.data = { show_sunrise: true, show_details: true, ...this._config };
+    this._form.data = { show_sunrise: true, show_details: true, show_hijri: true, ...this._config };
     this._form.schema = [
       { name: "entity", required: true, selector: { entity: { domain: "sensor", integration: DOMAIN } } },
       { name: "title", selector: { text: {} } },
       { name: "show_sunrise", selector: { boolean: {} } },
       { name: "show_details", selector: { boolean: {} } },
       { name: "show_comparison", selector: { boolean: {} } },
+      { name: "show_hijri", selector: { boolean: {} } },
+      {
+        name: "hijri_language",
+        selector: { select: { mode: "dropdown", options: [
+          { value: "card", label: t.e_hijri_card }, { value: "ar", label: t.e_hijri_ar },
+          { value: "both", label: t.e_hijri_both },
+        ] } },
+      },
       {
         name: "relative_style",
         selector: { select: { mode: "dropdown", options: [

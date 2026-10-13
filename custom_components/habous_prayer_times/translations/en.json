@@ -43,6 +43,8 @@
           "max_city_distance_km": "Maximum distance to a Habous city (km)",
           "recalc_tolerance_km": "Recalculation tolerance (km)",
           "update_frequency": "Update frequency (repository)",
+          "hijri_source": "Hijri date source",
+          "hijri_adjust": "Hijri date adjustment (days, calculated dates only)",
           "tune_fajr": "Fajr adjustment",
           "tune_sunrise": "Sunrise adjustment",
           "tune_dhuhr": "Dhuhr adjustment",
@@ -66,6 +68,12 @@
         "weekly": "Every week",
         "daily": "Every day",
         "manual": "Manual (\"Update\" button)"
+      }
+    },
+    "hijri_source": {
+      "options": {
+        "repository": "Data repository (official Moroccan calendar)",
+        "calculated": "Calculation (Umm al-Qura, may differ by a day)"
       }
     }
   },

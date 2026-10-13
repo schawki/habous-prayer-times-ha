@@ -249,7 +249,26 @@ class ArabicTests(unittest.TestCase):
         self.assertEqual(keys[2:], sorted(keys[2:]))
 
     def test_version_bumped(self):
-        self.assertEqual(json.loads((COMP / "manifest.json").read_text("utf-8"))["version"], "0.6.1")
+        self.assertEqual(json.loads((COMP / "manifest.json").read_text("utf-8"))["version"], "0.7.0")
+
+
+class HijriFeatureTests(unittest.TestCase):
+    def test_manifest_requires_the_hijri_library(self):
+        m = json.loads((COMP / "manifest.json").read_text("utf-8"))
+        self.assertTrue(any(r.startswith("hijridate") for r in m["requirements"]))
+
+    def test_card_has_hijri_options_and_arabic_month_names(self):
+        js = (COMP / "frontend" / "habous-prayer-card.js").read_text("utf-8")
+        for needle in ("show_hijri", "hijri_language", "hijri_months", "جمادى الأولى", "Jumada al-Awwal"):
+            self.assertIn(needle, js)
+
+    def test_options_translated_in_every_language(self):
+        for lang in ("en", "fr", "ar"):
+            d = json.loads((COMP / "translations" / f"{lang}.json").read_text("utf-8"))
+            data = d["options"]["step"]["init"]["data"]
+            self.assertIn("hijri_source", data)
+            self.assertIn("hijri_adjust", data)
+            self.assertEqual(set(d["selector"]["hijri_source"]["options"]), {"repository", "calculated"})
 
 
 class CardTests(unittest.TestCase):

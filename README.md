@@ -26,7 +26,16 @@ The interface is available in English, French and Arabic (it follows the languag
 - **Extra zones** and **people**: times follow their position and update when they move (last update date as an attribute).
 - **A person's times:** in a known zone (home or an extra zone) they get that zone's times; outside, the nearest Habous city **if it is within _N_ km** (option, default 30 km); otherwise times **calculated** at their position. A calculation is only redone if the person moved more than _M_ km from the point of the last calculation (option, default 5 km) or if the day changed. The card shows the calculation time and a refresh icon; when the page opens it calls the `habous_prayer_times.recalculate` service, which only recalculates when needed (`force: true` to force, e.g. in an automation). Recalculation uses the last position known to Home Assistant.
 - Repository update frequency: monthly (default), weekly, daily or manual, plus an "Update" button.
-- Sensors per place: Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha, Next prayer. Attributes: `place`, `source`, `last_update`, `mode` (`zone`, `repository` or `calculated`), `utc_offset` (legal-time offset of the day in the Habous data, e.g. `+00:00`; used by the notification blueprint to write the time without depending on the Home Assistant timezone database), `calculated_at` (time of the calculation, when times are calculated) and — when the repository covers the day — `repository_time` (Habous time), `calculated_time` and `difference_min` (calculated − Habous). Repository times are read with the file's `utc_offset`: they do not depend on Home Assistant's timezone database.
+- Sensors per place: Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha, Next prayer. Attributes: `place`, `source`, `last_update`, `mode` (`zone`, `repository` or `calculated`), `utc_offset` (legal-time offset of the day in the Habous data, e.g. `+00:00`; used by the notification blueprint to write the time without depending on the Home Assistant timezone database), `hijri_date` (e.g. `1 Jumada al-Awwal 1448`) with `hijri_year`, `hijri_month`, `hijri_day`, `hijri_month_name` and `hijri_source` (see *Hijri date* below), `calculated_at` (time of the calculation, when times are calculated) and — when the repository covers the day — `repository_time` (Habous time), `calculated_time` and `difference_min` (calculated − Habous). Repository times are read with the file's `utc_offset`: they do not depend on Home Assistant's timezone database.
+
+## Hijri date
+
+The Hijri date is shown at the top of the card and exposed as attributes of the sensors. The **"Hijri date source"** option lets you choose:
+
+- **Data repository (official Moroccan calendar)**, the default: the date published by the Habous, which follows the Moroccan moon-sighting decisions. When the repository does not have it (older files), the calculation is used instead.
+- **Calculation (Umm al-Qura)**: computed locally with the `hijridate` library; it can differ by a day from the Moroccan calendar. The **"Hijri date adjustment"** option (−2 to +2 days) shifts the calculated date, and also the fallback of the first choice.
+
+`hijri_source` tells which one is displayed (`repository` or `calculated`). The date changes at midnight.
 
 ## Blueprints (installed automatically)
 
@@ -47,6 +56,8 @@ show_sunrise: true         # optional
 show_details: true         # optional
 relative_style: compact    # compact (+14h25 / −0h14 in French and Arabic, +14:25 in English; default) or long
 show_comparison: false     # true: "Habous 05:01 · calculated 05:02 (+1)" under each prayer
+show_hijri: true           # Hijri date above the table (default true)
+hijri_language: card       # card (language of the card, transliterated month names), ar (Arabic) or both
 ```
 
 ## Installation via HACS
